@@ -11,12 +11,14 @@ import open3d as o3d
 import open3d.visualization.gui as gui
 import open3d.visualization.rendering as rendering
 from datetime import date, datetime
-from PIL import Image
+import PIL.Image
+import py3dtiles
 import os, platform, shutil, zipfile, logging, sys, glob, utm, time, pymeshlab, psutil, threading
-from tkinter import Tk
+from tkinter import *
+from tkinter import ttk
 from tkinter import filedialog, messagebox
 
-Image.MAX_IMAGE_PIXELS = None
+PIL.Image.MAX_IMAGE_PIXELS = None
 
 level = logging.INFO
 format = '%(message)s'
@@ -26,10 +28,67 @@ logging.basicConfig(level=level, format='%(asctime)s \033[1;34;40m%(levelname)-8
 
 o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Error)
 
-mesh_depth = 12
-
 class meshing():
-                
+    
+    def process_ply_as_tiles(self, with_texture_output_folder, fullpath, post_dest_folder, model_dest_folder):
+        
+        path, filename = os.path.split(fullpath)
+        
+        temp_folder = filename.replace('.ply', '').replace('.pts', '')
+        
+        model_filename = 'b2a_Model.ply'
+        
+        outfolder = with_texture_output_folder+separator+designator+temp_folder
+        
+        ms = pymeshlab.MeshSet()
+        ms.load_new_mesh(fullpath)
+        
+        logging.info('Creating Tiles.')    
+        message = 'INFO Creating Tiles.'
+        self.write_to_log(path, separator, message)          
+        
+        cmd = "py3dtiles convert " + fullpath + " --out " + outfolder + " -v > "+log_folder + separator + "runtime.log"   
+
+        os.system(cmd)
+        
+        logging.info('Compressing.')    
+        message = 'INFO Compressing.'
+        self.write_to_log(path, separator, message)
+        
+        shutil.make_archive(post_dest_folder + separator + designator + temp_folder, 'zip', outfolder)
+        
+        shutil.copy2(fullpath, model_dest_folder + "/" + model_filename) 
+        
+        shutil.rmtree("ARTAK_MM/DATA/PointClouds/" + folder_type + separator + pc_folder)
+        
+        try:
+            
+            os.unlink(dest_after_xcloud)
+            
+        except NameError:
+            
+            pass
+        
+        # Remove the status flag for MM_GUI progressbar
+        with open(log_folder + "status.log", "w") as status:
+            status.write("done")
+            
+        if "True" in auto_open:
+            
+            self.open_obj_model(model_dest_folder)
+            
+        message = 'INFO Processing Complete.\n'
+        logging.info('Processing Complete.')
+        self.write_to_log(path, separator, message)
+        messagebox.showinfo('ARTAK 3D Map Maker', 'Reconstruction Complete.')
+        
+        current_system_pid = os.getpid()
+    
+        ThisSystem = psutil.Process(current_system_pid)
+        ThisSystem.terminate()          
+        
+        sys.exit()
+
     def process_exlog(self, exlog_path):
         
         global dest_after_xcloud
@@ -134,8 +193,8 @@ class meshing():
         return fullpath
 
     def load_e57(self, e57path):
-
-        mesh_depth = 12
+        
+        mesh_depth = 13
         ms = pymeshlab.MeshSet()
         ms.load_new_mesh(e57path)
         fullpath = e57path.replace("e57", "ply")  
@@ -152,7 +211,7 @@ class meshing():
 
     def get_PointCloud(self):
         
-        global raw_obj, server_addr, resulting_mesh_type, auto_open, swap_axis, path, filename, mesh_output_folder, gen_path_folder, simplified_output_folder, with_texture_output_folder, obj_file, separator, c, log_name, lat, lon, utm_easting, utm_northing, zone, log_name, log_folder, pc_folder, post_dest_folder, model_dest_folder, face_number, designator, folder_type, folder_suffix, texture_size
+        global zip_file_for_compression, raw_obj, server_addr, resulting_mesh_type, auto_open, swap_axis, path, filename, mesh_output_folder, gen_path_folder, simplified_output_folder, with_texture_output_folder, obj_file, separator, c, log_name, lat, lon, elev, utm_easting, utm_northing, zone, log_name, log_folder, pc_folder, post_dest_folder, model_dest_folder, face_number, designator, folder_type, folder_suffix, texture_size
 
         with open("settings.cfg", "r") as settings:
             cfg = settings.readlines()
@@ -163,6 +222,16 @@ class meshing():
         root.iconbitmap(default='gui_images/ARTAK_103_drk.ico')
         root.after(1, lambda: root.focus_force())
         root.withdraw()
+        
+        with open("coords.txt", "r") as coords:
+            
+            coordinates = coords.read()
+            
+        lat, lon, elev = coordinates.split(",")
+        
+        lat = lat.strip()
+        lon = lon.strip()
+        elev = elev.strip()
               
         with open("ARTAK_MM/LOGS/runtime.log", "r") as runtime:
             
@@ -176,26 +245,41 @@ class meshing():
             ThisSystem.terminate() 
             
         with open("ARTAK_MM/LOGS/status.log", "w") as status:
-            status.write("running")        
+            status.write("running") 
             
-        if 'v2' in resulting_mesh_type:
+        if 'v1' in resulting_mesh_type:
             
-            face_number = 3500000
-            designator = 'hr_'
-            folder_type = 'HighRes'
-            folder_suffix = '_hr'
-            texture_size = 20480             
+            mesh_depth = 13
+            face_number = 350000
+            designator = 'b1_'
+            folder_type = 'Block_1'
+            folder_suffix = '_b1'
+            texture_size = 10240          
+            
+        elif 'v2' in resulting_mesh_type:
+            
+            mesh_depth = 13
+            face_number = 350000
+            designator = 'b2_'
+            folder_type = 'Block_2'
+            folder_suffix = '_b2'
+            texture_size = 10240 
+            
+        elif 'v2_pc' in resulting_mesh_type:
+            
+            designator = 'b2a_'
+            folder_type = 'Block_2a'
+            folder_suffix = '_b2a'
 
-        else: #If type is not v2, we assume the mesh will be for hololens (v1)
+        else:
             
-            face_number = 300000
-            designator = 'lr_'
-            folder_type = 'LowRes'
-            folder_suffix = '_lr'
-            texture_size = 8192   
+            mesh_depth = 13
+            face_number = 100000
+            designator = 'b1_'
+            folder_type = 'Block_1'
+            folder_suffix = '_b1'
+            texture_size = 10240            
             
-        # Here we will include the start of the loop
-        
         today = date.today()
         now = datetime.now()
         d = today.strftime("%d%m%Y")
@@ -206,13 +290,10 @@ class meshing():
             
         else:
             
-            separator = '/'
+            separator = '/'  
             
         # Define o3d data object to handle PointCloud
         ply_point_cloud = o3d.data.PLYPointCloud()
-
-        lat = "0"
-        lon = "0"
 
         # We will encode the lat and lon into utm compliant coordinates for the xyz file and retrieve the utm zone for the prj file
 
@@ -228,26 +309,28 @@ class meshing():
         fullpath = path + separator + filename
 
         if 'None' in fullpath:
-            quit()
+            sys.exit()
 
         if '.e57' in fullpath:
             fullpath, mesh_depth = self.load_e57(fullpath)
             
         path, filename = os.path.split(fullpath)
 
-        logfilename = filename.replace('.ply', '').replace('.pts', '').replace('.obj', '').replace('.e57', '').replace('.ex', '')
+        logfilename = designator + filename.replace('.ply', '').replace('.pts', '').replace('.obj', '').replace('.e57', '').replace('.ex', '')
         pc_folder = logfilename
         
         log_name = designator + filename.replace('.ply', '').replace('.pts', '').replace('.obj', '').replace('.e57', '').replace('.ex', '') + "_" + str(d) + "_" + str(ct) + ".log"
 
         # Derive destination folders from source path
-        post_dest_folder = "ARTAK_MM/POST/Lidar" + separator + designator + pc_folder + separator + "Data"
-        model_dest_folder = "ARTAK_MM/POST/Lidar" + separator + designator + pc_folder + separator + "Data/Model"
-        mesh_output_folder = "ARTAK_MM/DATA/PointClouds/"+folder_type + separator + pc_folder + separator + "mesh"+folder_suffix
-        simplified_output_folder = "ARTAK_MM/DATA/PointClouds/"+folder_type + separator + pc_folder + separator + "simplified"+folder_suffix
+        post_dest_folder = "ARTAK_MM/POST/Lidar" + separator + pc_folder.replace("b1_b1_", "b1_").replace("b2_b2_", "b2_") + separator + "Data"
+        model_dest_folder = "ARTAK_MM/POST/Lidar" + separator + pc_folder.replace("b1_b1_", "b1_").replace("b2_b2_", "b2_") + separator + "Data/Model"
+        mesh_output_folder = "ARTAK_MM/DATA/PointClouds/"+folder_type + separator + pc_folder.replace("b1_b1_", "b1_").replace("b2_b2_", "b2_") + separator + "mesh"+folder_suffix
+        simplified_output_folder = "ARTAK_MM/DATA/PointClouds/"+folder_type + separator + pc_folder.replace("b1_b1_", "b1_").replace("b2_b2_", "b2_") + separator + "simplified"+folder_suffix
         gen_path_folder = "ARTAK_MM/DATA/Generated_Mesh"
-        with_texture_output_folder = "ARTAK_MM/DATA/PointClouds/"+folder_type + separator + pc_folder + separator + "final"+folder_suffix
+        with_texture_output_folder = "ARTAK_MM/DATA/PointClouds/"+folder_type + separator + pc_folder.replace("b1_b1_", "b1_").replace("b2_b2_", "b2_") + separator + "final"+folder_suffix
         log_folder = "ARTAK_MM/LOGS/"
+        
+        zip_file_for_compression = designator + filename.replace(".ex", ".zip").replace(".obj", ".zip").replace(".ply", ".zip").replace(".pts", ".zip")
 
         # Create directories within the source folder if they dont exist
         if not os.path.exists(mesh_output_folder):
@@ -261,7 +344,7 @@ class meshing():
         if not os.path.exists(model_dest_folder):
             os.makedirs(model_dest_folder, mode=777)
 
-        if "lr_" in designator:
+        if "b1_" in designator:
             # Create xyz and prj based on lat and lon provided
             prj_1 = 'PROJCS["WGS 84 / UTM zone '
             prj_2 = '",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-81],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32617"]]'
@@ -292,16 +375,26 @@ class meshing():
             
             message = 'INFO Standalone Mesh requested.'
             logging.info('Standalone Mesh requested.')
-            self.write_to_log(path, separator, message)        
-            
+            self.write_to_log(path, separator, message)     
+        
         message = 'INFO Loading PointCloud. File: ' + str(fullpath)
         logging.info('Loading PointCloud. File: ' + str(fullpath))
         self.write_to_log(path, separator, message)
-        pcd = o3d.io.read_point_cloud(fullpath)
+        #message = 'INFO Processing to depth: ' + str(mesh_depth)
+        #logging.info('Processing to depth: ' + str(mesh_depth))
+        #self.write_to_log(path, separator, message) 
+        
+        if 'v2_pc' in resulting_mesh_type:
+                
+            self.process_ply_as_tiles(with_texture_output_folder, fullpath, post_dest_folder, model_dest_folder)
+            
+        else:
+            
+            pcd = o3d.io.read_point_cloud(fullpath)
+        
+        self.downsample(pcd, texture_size, mesh_depth)
 
-        self.downsample(pcd, texture_size)
-
-    def downsample(self, pcd, texture_size):
+    def downsample(self, pcd, texture_size, mesh_depth):
         # We need to downsample the PointCloud to make it less dense and easier to work with
         message = "INFO "+str(pcd)
         logging.info(str(pcd))
@@ -329,7 +422,7 @@ class meshing():
 
         mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(downpcd, depth=mesh_depth, width=0, scale=1.1,
                                                                          linear_fit=False)[0]
-        generated_mesh = mesh_output_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
+        generated_mesh = mesh_output_folder + separator + designator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj').replace('.e57', '.obj')
 
         message = 'INFO Exporting Mesh.'
         logging.info('Exporting Mesh.')
@@ -346,10 +439,10 @@ class meshing():
 
         mesh_file_size = int(os.path.getsize(generated_mesh))
         origin = 'pc'
-
-        if mesh_file_size > 10000000000:
+        
+        if mesh_file_size > 15000000000:
             
-            mesh_depth = 11
+            mesh_depth = 12
             message = 'WARNING Mesh is not memory friedly. Retrying with safer parameters.'
             logging.warning('Mesh is not memory friedly. Retrying with safer parameters.')
             self.write_to_log(path, separator, message)
@@ -394,7 +487,7 @@ class meshing():
     
                     p = pymeshlab.PercentageValue(25)
                     message = 'INFO Refining.'
-                    logging.info('Refining')
+                    logging.info('Refining.')
                     self.write_to_log(path, separator, message)
                     # We will select faces that are long based on the bounding box calculation and then remove them
                     ms.apply_filter('compute_selection_by_edge_length',
@@ -425,7 +518,7 @@ class meshing():
                     logging.info('Exporting Mesh.')
                     self.write_to_log(path, separator, message)
     
-                    newpath = simplified_output_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
+                    newpath = simplified_output_folder + separator + designator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
                     newpath_gen = gen_path_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
                     
                     ms.save_current_mesh(newpath,
@@ -438,7 +531,7 @@ class meshing():
                                          save_polygonal=True)
                     
                     shutil.copyfile(newpath, newpath_gen)
-                    
+
                     if 'True' in raw_obj:
                         
                         try:
@@ -636,7 +729,7 @@ class meshing():
 
                             ThisSystem = psutil.Process(current_system_pid)
                             ThisSystem.terminate()  
- 
+
             m = ms.current_mesh()
             v_number = m.vertex_number()
             f_number = m.face_number()
@@ -657,7 +750,11 @@ class meshing():
 
             else:
                 
-                newpath1 = simplified_output_folder + separator + 'decimated_' + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', 'obj')
+                logging.info("End VC: "+str(v_number)+". End FC: "+str(f_number)+". Bypassing Decimation.\r")
+                message = 'INFO End VC: ' + str(v_number) + '. End FC: ' + str(f_number) + ". Bypassing Decimation."
+                self.write_to_log(path, separator, message)                           
+                
+                newpath1 = simplified_output_folder + separator + 'decimated_' + designator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
 
                 ms.save_current_mesh(newpath1,
                                      save_vertex_color=True,
@@ -686,8 +783,10 @@ class meshing():
         # The mesh decimation works best if we take a percentage of faces at a time. We will decimate to target amount
         # of (faces / weight) and save the file, then read the file size and if necessary (over the 185Mb threshold), we will repeat
         # the decimation process again until the resulting mesh meets the file size criteria, we will do this n times (passes).
+        
         m = ms.current_mesh()
         c = 1
+        
         # while f_number > 6500000:
         while f_number > face_number:
             m = ms.current_mesh()
@@ -719,7 +818,7 @@ class meshing():
         message = 'INFO End VC: ' + str(v_number) + '. End FC: ' + str(f_number) + "."
         self.write_to_log(path, separator, message)
 
-        newpath1 = simplified_output_folder + separator + 'decimated_' + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj')
+        newpath1 = simplified_output_folder + separator + 'decimated_' + designator + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj')
 
         ms.save_current_mesh(newpath1,
                              save_vertex_color=True,
@@ -729,7 +828,7 @@ class meshing():
                              save_wedge_texcoord=True,
                              save_wedge_normal=True,
                              save_polygonal=True)
-
+        
         self.add_texture_and_materials(newpath, newpath1, texture_size)
         
     def add_texture_and_materials(self, newpath, newpath1, texture_size):
@@ -745,25 +844,18 @@ class meshing():
         self.write_to_log(path, separator, message)
 
         ms.load_new_mesh(newpath)
-        ms.load_new_mesh(newpath1)
-
-        message = 'INFO Texturing to '+str(texture_size)+'px x '+str(texture_size)+'px Resolution.'
-        logging.info('Texturing to '+str(texture_size)+'px x '+str(texture_size)+'px Resolution.')
-        self.write_to_log(path, separator, message)
+        ms.load_new_mesh(newpath1)       
         
         try:
-            
-            if 'v2' in resulting_mesh_type:
-                itb = 3 #Need to change this to a lower value to avoind itb overrun
-                
-            else:
-                itb = 3
+
+            itb = 3 # If itb overrun then texture needs to be bigger
+            m_method = 'Basic'
         
             ms.apply_filter('compute_texcoord_parametrization_triangle_trivial_per_wedge',
                             sidedim = 0,
                             textdim = texture_size,
                             border = itb,
-                            method = 'Basic')
+                            method = m_method)
             
         except pymeshlab.pmeshlab.PyMeshLabException:
             
@@ -782,17 +874,18 @@ class meshing():
             
         percentage = pymeshlab.PercentageValue(2)
 
-        newpath_texturized = with_texture_output_folder + separator + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj').replace('decimated_', '')
+        newpath_texturized = with_texture_output_folder + separator + designator + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj').replace('decimated_', '')
 
-        model_path = model_dest_folder + separator + 'Model.obj'
+        model_path = model_dest_folder + separator + designator + 'Model.obj'
 
         #Here we transfer the texture
+     
         ms.apply_filter('transfer_attributes_to_texture_per_vertex',
                          sourcemesh = 0,
                          targetmesh  = 1,
                          attributeenum = 0,
                          upperbound = percentage,
-                         textname = 'texture.png',
+                         textname = designator + 'texture.png',
                          textw = texture_size,
                          texth = texture_size,
                          overwrite = False,
@@ -814,15 +907,33 @@ class meshing():
                              save_wedge_texcoord=True,
                              save_wedge_normal=True)
 
-        # We need to compress the texture file
-        img = Image.open(with_texture_output_folder + separator + 'texture.png')
-        img = img.convert("P", palette=Image.WEB, colors = 256)
-        img.save(with_texture_output_folder + separator + 'texture.png', optimize=True)
-        img.save(model_dest_folder + separator +  'texture.png', optimize=True)
+        # We need check if we have to compress the texture file
+        
+        print("\n")    
+        logging.info('Compressing texture.')   
+        message = 'INFO Compressing texture.'
+        self.write_to_log(path, separator, message)       
+
+        img = PIL.Image.open(with_texture_output_folder + separator + designator + 'texture.png')
+        img = img.convert("P", palette=PIL.Image.WEB, colors = 256)
+        
+        img.save(with_texture_output_folder + separator + designator  + 'texture.png', optimize=True)
+        img.save(model_dest_folder + separator +  designator  + 'texture.png', optimize=True)
 
         # Let's compress
-        self.compress_into_zip(with_texture_output_folder, newpath)
+        
+        zip_file = with_texture_output_folder + separator + designator + filename.replace('.obj', '').replace('.ply','').replace('.pts', '').replace('.ex', '') + '.zip'        
+        
+        if 'v1' in resulting_mesh_type:
+            
+            logging.info('Compressing to '+with_texture_output_folder + '/'+ str(zip_file_for_compression)) 
+            message = 'INFO Compressing to '+with_texture_output_folder +'/'+ str(zip_file_for_compression)
+            self.write_to_log(path, separator, message)
+        
+        self.compress_into_zip(with_texture_output_folder, newpath, zip_file)
+        
         files = [f for f in glob.glob(with_texture_output_folder + "/*.zip")]
+        
         for file in files:
             shutil.copy(file, post_dest_folder)
 
@@ -853,29 +964,56 @@ class meshing():
         ThisSystem = psutil.Process(current_system_pid)
         ThisSystem.terminate()        
 
-    def compress_into_zip(self, with_texture_output_folder, newpath):
+    def compress_into_zip(self, with_texture_output_folder, newpath, zip_file):
+        
+        if 'v2' in resulting_mesh_type:
+            
+            logging.info('Generating Tiles.')   
+            message = 'INFO Generating Tiles.'
+            self.write_to_log(path, separator, message)                
+            
+            target_to_tile = with_texture_output_folder + separator + designator + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj')
+            
+            tiles_folder = target_to_tile.replace('.obj', '')+"_tiles"
+            
+            os.makedirs(tiles_folder, exist_ok = True)
+            
+            cmd = "Obj2Tiles --lods 1 --divisions 5 --lat "+str(lat)+" --lon "+str(lon)+" --alt "+str(elev)+" "+target_to_tile+" "+tiles_folder+" > "+log_folder + separator + "runtime.log"
+            
+            os.system(cmd) 
+            
+            logging.info('Done Generating Tiles.')   
+            message = 'INFO Done Generating Tiles.'
+            self.write_to_log(path, separator, message)   
+            
+            logging.info('Compressing to '+tiles_folder+separator+designator+filename.replace('.ply', '.zip').replace('.pts','.zip').replace('.ex','.zip').replace('.obj','.zip')+".")   
+            message = 'INFO Compressing to '+tiles_folder+separator+designator+filename.replace('.ply', '.zip').replace('.pts','.zip').replace('.ex','.zip').replace('.obj','.zip')+"."
+            self.write_to_log(path, separator, message)            
+            
+            shutil.make_archive(tiles_folder.replace('_tiles', ''), 'zip', tiles_folder)
+            
+            return
+        
+        if 'v1' in resulting_mesh_type:
+            
+            extensions = ['.obj', '.obj.mtl', '.xyz', '.prj', '.png']        
 
-        if 'lr_' in designator:
-            extensions = ['.obj', '.obj.mtl', '.xyz', '.prj']
-        else:
-            extensions = ['.obj', '.obj.mtl', '.png']
-
-        compression = zipfile.ZIP_DEFLATED
-        zip_file = with_texture_output_folder + separator + filename.replace('.obj', '').replace('.ply',
-                                                                                                         '').replace(
-            '.pts', '').replace('.ex', '') + '.zip'
-        with zipfile.ZipFile(zip_file, mode="w") as zf:
-            for ext in extensions:
-                try:
-                    zf.write(with_texture_output_folder + separator + filename.replace('.obj', '').replace('.ply','').replace('.pts', '') + ext, filename.replace('.obj', '').replace('.ply', '').replace('.pts', '').replace('.ex', '') + ext,
-                             compress_type = compression, compresslevel = 9)
-                except FileExistsError:
-                    pass
-                except FileNotFoundError:
-                    pass
-            zf.write(with_texture_output_folder + separator + 'texture.png', 'texture.png', compress_type = compression, compresslevel = 9)
-
-        return
+            compression = zipfile.ZIP_DEFLATED
+            
+            with zipfile.ZipFile(zip_file, mode="w") as zf:
+                for ext in extensions:
+                    
+                    try:
+                        zf.write(with_texture_output_folder + separator + designator + filename.replace('.obj', '').replace('.ply','').replace('.pts', '').replace('.ex', '') + ext, designator + filename.replace('.obj', '').replace('.ply', '').replace('.pts', '').replace('.ex', '') + ext,
+                                 compress_type = compression, compresslevel = 9)
+                    except FileExistsError:
+                        pass
+                    except FileNotFoundError:
+                        pass
+                    
+                zf.write(with_texture_output_folder + separator + designator + 'texture.png', designator + 'texture.png', compress_type = compression, compresslevel = 9)
+    
+            return
 
     def write_to_log(self, path, separator, message):
 
@@ -889,17 +1027,38 @@ class meshing():
     
     def open_obj_model(self, model_dest_folder):
         
-        model_name = os.path.join(model_dest_folder, "Model.obj")
-        model = o3d.io.read_triangle_mesh(model_name)
-        material = o3d.visualization.rendering.MaterialRecord()
-        material.shader = "defaultLit"        
+        if 'b2a_' in model_dest_folder:
+            
+            model_name = 'b2a_Model.ply'
+            path = os.path.join(model_dest_folder + "/", model_name)
+            
+            ply_point_cloud = o3d.data.PLYPointCloud()
+            pcd = o3d.io.read_point_cloud(path)
+            
+            # This is the preview step
+            o3d.visualization.draw_geometries([pcd],
+                                                window_name=str('hello'),
+                                                width=1280,
+                                                height=900,
+                                                zoom=0.32000000000000001,
+                                                front=[-0.34267508672450531, 0.89966482743414444, 0.27051244558475285],
+                                                lookat=[-15.934802105738544, -4.9954584521228949, 1.4543439424505489],
+                                                up=[0.095768108125702828, -0.25299355589613992, 0.96271632900925208])
+            return
         
-        albedo_name = os.path.join(model_dest_folder, "texture.png")
-        material.albedo_img = o3d.io.read_image(albedo_name)
+        else:
         
-        o3d.visualization.draw([{"name": "Model", "geometry": model, "material": material}], title = "ARTAK 3D Map Maker || LiDAR Edition", bg_color = [0,0,0,0], show_skybox = False, actions = None, width = 1280, height = 900)
-        
-        return
+            model_name = model_dest_folder + separator + designator + "Model.obj"
+            model = o3d.io.read_triangle_mesh(model_name)
+            material = o3d.visualization.rendering.MaterialRecord()
+            material.shader = "defaultLit"        
+            
+            albedo_name = model_dest_folder + separator + designator + "texture.png"
+            material.albedo_img = o3d.io.read_image(albedo_name)
+            
+            o3d.visualization.draw([{"name": "Model", "geometry": model, "material": material}], title = "ARTAK 3D Map Maker || LiDAR Edition", bg_color = [0,0,0,0], show_skybox = False, actions = None, width = 1280, height = 900)
+            
+            return
     
 if __name__ == '__main__':
     meshing().get_PointCloud()
