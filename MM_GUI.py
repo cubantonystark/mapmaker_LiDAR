@@ -1,11 +1,11 @@
 '''
-Compile with pyinstaller MM_GUI.py --icon=gui_images/ARTAK_103_drk.ico --collect-all=pymeshlab --onedir --collect-all=open3d
+Compile with pyinstaller MM_GUI.py --icon=gui_images/ARTAK_103_drk.ico --collect-all=pymeshlab --onedir --collect-all=open3d --contents-directory _mm_gui
 
 Make sure to comment the line: subprocess.Popen(["python", "MM_pc2mesh.py"])
 
 and uncomment: #subprocess.run(["MM_pc2mesh.exe"]) # Change to this when compiling .exe file
                              
-'''
+
 
 import win32gui, win32con
 
@@ -13,7 +13,7 @@ import win32gui, win32con
 
 this_program = win32gui.GetForegroundWindow()
 win32gui.ShowWindow(this_program, win32con.SW_HIDE)
-
+'''
 
 import random, psutil
 from datetime import datetime
@@ -152,6 +152,14 @@ class App(customtkinter.CTk):
                                                    hover_color=("gray70", "gray30"),
                                                    image=self.home_image, anchor="w", command=self.home_button_event)
         self.home_button.grid(row=1, column=0, sticky="ew")
+        
+        self.frame_2_button = customtkinter.CTkButton(self.navigation_frame, corner_radius=0, height=40,
+                                                      border_spacing=10, text="System Logs",
+                                                      fg_color="transparent", text_color=("gray10", "gray90"),
+                                                      hover_color=("gray70", "gray30"),
+                                                      image=self.chat_image, anchor="w",
+                                                      command=self.frame_2_button_event)
+        self.frame_2_button.grid(row=2, column=0, sticky="ew")            
 
         self.frame_4_button = customtkinter.CTkButton(self.navigation_frame, corner_radius=0, height=40,
                                                       border_spacing=10, text="System Settings",
@@ -280,7 +288,7 @@ class App(customtkinter.CTk):
 
         # endregion
 
-        self.browse_label_pc = customtkinter.CTkLabel(self.home_frame, text="Process PointCloud(s)")
+        self.browse_label_pc = customtkinter.CTkLabel(self.home_frame, text="Process PointCloud")
         self.browse_label_pc.grid(row=8, column=0, padx=20, pady=10)
 
         self.browse_button_pc = customtkinter.CTkButton(self.home_frame, text="Browse", command=self.gen_pc,
@@ -288,18 +296,13 @@ class App(customtkinter.CTk):
         self.browse_button_pc.grid(row=8, column=1, padx=20, pady=10)
 
         # create second frame
+        
         self.second_frame = customtkinter.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.second_frame.grid_rowconfigure(0, weight=1)  # configure grid system
         self.second_frame.grid_columnconfigure(0, weight=1)
 
-        self.home_frame_text = customtkinter.CTkTextbox(self.second_frame, height=200)
-        self.home_frame_text.grid(row=0, column=0, padx=20, pady=10, sticky="nsew", columnspan=4)
-
-        self.output_text2 = customtkinter.CTkTextbox(self.second_frame, height=200)
-        self.output_text2.grid(row=2, column=0, padx=20, pady=10, sticky="nsew", columnspan=4)
-
-        self.output_text3 = customtkinter.CTkTextbox(self.second_frame, height=200)
-        self.output_text3.grid(row=3, column=0, padx=20, pady=10, sticky="nsew", columnspan=4)
+        self.output_text2 = customtkinter.CTkTextbox(self.second_frame, height=400)
+        self.output_text2.grid(row=0, column=0, padx=5, pady=5, sticky="nsew", columnspan=4)
 
         # create third frame
         self.third_frame = customtkinter.CTkScrollableFrame(self, corner_radius=0, fg_color="transparent")
@@ -318,6 +321,42 @@ class App(customtkinter.CTk):
         
         if not os.path.exists("settings.cfg"):
             self.read_settings_and_save()
+            
+        log_entry = str(datetime.now())+" App startup complete\r"
+        
+        self.write_to_runtime_log(log_entry)
+        
+    def write_to_runtime_log(self, log_entry):
+        
+        with open("ARTAK_MM/LOGS/runtime.log", "w") as runtimelog:
+            log_entry = runtimelog.write(str(log_entry))
+        return
+    
+    def read_from_runtime_log(self):
+        
+        with open("ARTAK_MM/LOGS/runtime.log", "r") as runtimelog:
+            log_entry = runtimelog.read().strip()
+        return log_entry     
+        
+    def add_to_log_screen(self):
+        
+        prev_log_entry = ""
+        
+        while True:
+            
+            log_entry = self.read_from_runtime_log()
+            
+            if prev_log_entry == log_entry:
+                
+                pass
+            
+            else:
+                        
+                self.output_text2.insert(tk.END, str(log_entry)+"\n")
+                self.output_text2.see(tk.END)
+                
+            prev_log_entry = log_entry
+            time.sleep(0.25)          
         
     def read_settings_and_save(self):
         
@@ -358,7 +397,7 @@ class App(customtkinter.CTk):
             os.remove("ARTAK_MM/LOGS/status.log")
             
         os.remove(os.getcwd() + "/ARTAK_MM/LOGS/kill.mm")
-        os.system('@taskkill /im python.exe /F >nul 2>&1')
+        os.system('@taskkill /im MM_pc2mesh.exe /F >nul 2>&1')
             
         current_system_pid = os.getpid()
 
@@ -377,9 +416,9 @@ class App(customtkinter.CTk):
 
     def gen_pc(self):
 
-        #subprocess.Popen(["python", "MM_pc2mesh.py"])
+        subprocess.Popen(["python", "MM_pc2mesh.py"])
         
-        subprocess.Popen(["MM_pc2mesh.exe"]) # Change to this when compiling .exe file
+        #subprocess.Popen(["MM_pc2mesh.exe"]) # Change to this when compiling .exe file
 
     def display_activity_on_pc_recon(self):
 
@@ -599,4 +638,5 @@ if __name__ == "__main__":
     app = App()
     threading.Thread(target=app.find_folders_with_obj,name = 't1').start()
     threading.Thread(target=app.display_activity_on_pc_recon, name = 't2').start()
+    threading.Thread(target=app.add_to_log_screen, name = 't3').start()
     app.mainloop()

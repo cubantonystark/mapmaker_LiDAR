@@ -3,7 +3,7 @@ Mesh generation from PointClouds.
 (C) 2022 - 2024, Reynel Rodriguez
 All rights reserved.
 
-Compile with pyinstaller MM_pc2mesh.py --icon=gui_images/ARTAK_103_drk.ico --collect-all=pymeshlab --onefile --collect-all=open3d
+Compile with pyinstaller MM_pc2mesh.py --icon=gui_images/ARTAK_103_drk.ico --collect-all=pymeshlab --onedir --collect-all=open3d --contents-directory _pc2mesh
 '''
 
 import open3d as o3d
@@ -216,19 +216,16 @@ class meshing():
         self.write_to_log(path, separator, message)
         pcd = o3d.io.read_point_cloud(fullpath)
 
-        # This will output the Point count
-        log.info(str(pcd)+"\r")
-        
-        message = str(pcd)
-        self.write_to_log(path, separator, message)
         self.downsample(pcd, texture_size)
 
     def downsample(self, pcd, texture_size):
         # We need to downsample the PointCloud to make it less dense and easier to work with
+        message = str(pcd)
+        log.info(message)
+        self.write_to_log(path, separator, message)        
         message = "Downsampling."
         log.info(message)
         self.write_to_log(path, separator, message)
-        message = str(pcd)
         downpcd = pcd.voxel_down_sample(voxel_size = 0.03)
         log.info(str(downpcd)+"\r")
         message = str(downpcd)
@@ -494,7 +491,10 @@ class meshing():
                             # Announce error and terminate.
                             messagebox.showerror('ARTAK 3D Map Maker', 'Could not compute Mesh from PointCloud. Aborting.')
                             
-                            sys.exit()  
+                            current_system_pid = os.getpid()
+
+                            ThisSystem = psutil.Process(current_system_pid)
+                            ThisSystem.terminate()  
  
             m = ms.current_mesh()
             v_number = m.vertex_number()
@@ -535,7 +535,9 @@ class meshing():
             log.error('Not enough Memory to run the process. Quitting.\r')
             message = 'Error. Not enough Memory to run the process. Quitting.'
             self.write_to_log(path, separator, message)
-            sys.exit()
+            current_system_pid = os.getpid()
+            ThisSystem = psutil.Process(current_system_pid)
+            ThisSystem.terminate()
 
     def decimation(self, ms, newpath, f_number, texture_size):
         # The mesh decimation works best if we take a percentage of faces at a time. We will decimate to target amount
@@ -633,7 +635,9 @@ class meshing():
             message = 'Error. ITB overrun. Quitting.'
             self.write_to_log(path, separator, message)
             messagebox.showerror('ARTAK 3D Map Maker', 'Could not compute Mesh from PointCloud. Aborting.')
-            sys.exit()            
+            current_system_pid = os.getpid()
+            ThisSystem = psutil.Process(current_system_pid)
+            ThisSystem.terminate()         
             
         percentage = pymeshlab.PercentageValue(2)
 
@@ -700,7 +704,11 @@ class meshing():
         log.info(message)
         self.write_to_log(path, separator, message)
         messagebox.showinfo('ARTAK 3D Map Maker', 'Reconstruction Complete.')
-        sys.exit()
+        
+        current_system_pid = os.getpid()
+    
+        ThisSystem = psutil.Process(current_system_pid)
+        ThisSystem.terminate()        
 
     def compress_into_zip(self, with_texture_output_folder, newpath):
 
@@ -730,6 +738,10 @@ class meshing():
 
         with open(log_folder + log_name, "a+") as log_file:
             log_file.write(str(datetime.now())+" "+message + "\r")
+            
+        with open(log_folder + "runtime.log", "w") as log_file:
+            log_file.write(str(datetime.now())+" "+message + "\r")        
+        time.sleep(0.5)
         return
     
     def open_obj_model(self, model_dest_folder):
