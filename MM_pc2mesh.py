@@ -2,7 +2,7 @@
 Mesh generation from PointClouds.
 (C) 2022 - 2024, Reynel Rodriguez
 All rights reserved.
-For Enya, Jonathan and Willy.
+For Enya, Jonathan, and Willy.
 
 Compile with pyinstaller MM_pc2mesh.py --icon=gui_images/ARTAK_103_drk.ico --collect-all=pymeshlab --onefile --collect-all=open3d
 '''
@@ -12,7 +12,7 @@ import open3d.visualization.gui as gui
 import open3d.visualization.rendering as rendering
 from datetime import date, datetime
 from PIL import Image
-import os, platform, shutil, zipfile, logging, sys, glob, utm, time, pymeshlab, psutil
+import os, platform, shutil, zipfile, logging, sys, glob, utm, time, pymeshlab, psutil, threading
 from tkinter import Tk
 from tkinter import filedialog, messagebox
 
@@ -29,6 +29,109 @@ o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Error)
 mesh_depth = 12
 
 class meshing():
+                
+    def process_exlog(self, exlog_path):
+        
+        global dest_after_xcloud
+        
+        exlog_file, exlog_file_extension = os.path.splitext(exlog_path)
+        
+        exlog_filepath, exlog_file_name = os.path.split(exlog_file)
+        
+        exlog_file_name = exlog_file_name.replace(".", '_')
+        
+        exlog_filename_converted = exlog_file_name+exlog_file_extension
+        
+        dest = "\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\exlogs\\"+exlog_filename_converted
+        
+        gen_file_excloud = exlog_file_name+".prc.id.cc.nrm.rgb.ply"
+        
+        xcloud_file_copied = exlog_file_name+".ply"
+        
+        origin_after_xcloud = "\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\exlogs\\"+gen_file_excloud
+        
+        dest_after_xcloud = os.path.join(os.getcwd(), xcloud_file_copied)
+        
+        logging.info('Extracting PointCloud.')    
+        message = 'INFO Extracting PointCloud.'
+        self.write_to_log(path, separator, message)         
+        
+        shutil.copy(exlog_path, dest)
+
+        cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE='+exlog_filename_converted+' && /snap/bin/docker load < /home/mapmaker/exyn/excloud/exynai-runtime-bionic_23.10.0_base.tar && /snap/bin/docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-bionic:23.10.0_base excloud -i /home/exlogs/$LOGFILE --colors --keep_uncolorized --d-cloud_remove_nonstatic_params-trajectory_params-max_dataset_duration 3600 -w /home/exlogs | tee /home/mapmaker/exyn/runtime.log && exit; exec bash"'
+        os.system(cmd)
+        
+        with open("\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\runtime.log", "r") as log_file:
+            
+            logs = log_file.read()
+            
+            if 'This logfile is not indexed, please use --reindex to fix it' in logs:
+                
+                logging.info('Exlog '+exlog_filename_converted+' is not indexed. Attempting reindexing.')   
+                message = 'INFO Exlog '+exlog_filename_converted+' is not indexed. Attempting reindexing.'
+                self.write_to_log(path, separator, message)
+                
+                cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE='+exlog_filename_converted+' && /snap/bin/docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-bionic:23.10.0_base exlog --reindex /home/exlogs/$LOGFILE --force | tee /home/mapmaker/exyn/runtime.log && exit; exec bash"'
+                os.system(cmd)
+                
+                exlog_filename_reindexed = exlog_file_name+'.reindex'+exlog_file_extension
+                
+                cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE='+exlog_filename_reindexed+' && /snap/bin/docker load < /home/mapmaker/exyn/excloud/exynai-runtime-bionic_23.10.0_base.tar && /snap/bin/docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-bionic:23.10.0_base excloud -i /home/exlogs/$LOGFILE --colors --keep_uncolorized --d-cloud_remove_nonstatic_params-trajectory_params-max_dataset_duration 3600 -w /home/exlogs | tee /home/mapmaker/exyn/runtime.log && exit; exec bash"'
+                os.system(cmd)   
+                
+                with open("\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\runtime.log", "r") as log_file:
+                    
+                    logs = log_file.read()
+                    
+                    if 'Exyn::Exception thrown at' in logs:
+                                
+                        with open(log_folder + "status.log", "w") as status:
+                            status.write("error")            
+                        
+                        # Announce error and terminate.
+                        messagebox.showerror('ARTAK 3D Map Maker', 'Corrupted Exlog. Unable to process. Aborting.')
+                        
+                        sys.exit()
+                        
+                gen_file_exloud = exlog_file_name+".reindex.prc.id.cc.nrm.rgb.ply"
+                
+                origin_after_xcloud = "\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\exlogs\\"+gen_file_excloud
+                
+                xcloud_file_copied = exlog_file_name+".reindex.prc.id.cc.nrm.rgb.ply"
+                
+                dest_after_xcloud = os.path.join(os.getcwd(), xcloud_file_copied)
+                
+            elif 'Chunk alignment fault; guard word was wrong' in logs:
+                
+                with open(log_folder + "status.log", "w") as status:
+                    status.write("error")            
+                
+                # Announce error and terminate.
+                messagebox.showerror('ARTAK 3D Map Maker', 'Chunk alignment error. Unable to process exlog. Aborting.')
+                
+                sys.exit()     
+                
+            elif 'Exyn::Exception thrown at' in logs:
+                
+                with open(log_folder + "status.log", "w") as status:
+                    status.write("error")            
+                
+                # Announce error and terminate.
+                messagebox.showerror('ARTAK 3D Map Maker', 'Corrupted Exlog. Unable to process. Aborting.')
+                
+                sys.exit() 
+
+        shutil.copy(origin_after_xcloud, dest_after_xcloud)
+        
+        cmd = 'wsl --user mapmaker -e bash -c "sudo rm -rf /home/mapmaker/exyn/exlogs/* && exit; exec bash"'
+        os.system(cmd)
+
+        fullpath = dest_after_xcloud
+    
+        logging.info('PointCloud Extracted.')   
+        message = 'INFO PointCloud Extracted.'
+        self.write_to_log(path, separator, message)
+        return fullpath
 
     def load_e57(self, e57path):
 
@@ -89,8 +192,8 @@ class meshing():
             designator = 'lr_'
             folder_type = 'LowRes'
             folder_suffix = '_lr'
-            texture_size = 8192            
-        
+            texture_size = 8192   
+            
         # Here we will include the start of the loop
         
         today = date.today()
@@ -129,13 +232,13 @@ class meshing():
 
         if '.e57' in fullpath:
             fullpath, mesh_depth = self.load_e57(fullpath)
-
+            
         path, filename = os.path.split(fullpath)
 
-        logfilename = filename.replace('.ply', '').replace('.pts', '').replace('.obj', '').replace('.e57', '')
+        logfilename = filename.replace('.ply', '').replace('.pts', '').replace('.obj', '').replace('.e57', '').replace('.ex', '')
         pc_folder = logfilename
         
-        log_name = designator + filename.replace('.ply', '').replace('.pts', '').replace('.obj', '').replace('.e57', '') + "_" + str(d) + "_" + str(ct) + ".log"
+        log_name = designator + filename.replace('.ply', '').replace('.pts', '').replace('.obj', '').replace('.e57', '').replace('.ex', '') + "_" + str(d) + "_" + str(ct) + ".log"
 
         # Derive destination folders from source path
         post_dest_folder = "ARTAK_MM/POST/Lidar" + separator + designator + pc_folder + separator + "Data"
@@ -168,6 +271,10 @@ class meshing():
 
             with open(with_texture_output_folder + separator + logfilename + '.prj', 'w') as prj:
                 prj.write(str(prj_1) + str(zone) + str(prj_2))
+                
+        if '.ex' in fullpath:
+            
+            fullpath = self.process_exlog(fullpath)        
                               
         if ".obj" in filename:
             
@@ -222,7 +329,7 @@ class meshing():
 
         mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(downpcd, depth=mesh_depth, width=0, scale=1.1,
                                                                          linear_fit=False)[0]
-        generated_mesh = mesh_output_folder + separator + filename.replace('ply', 'obj').replace('pts', 'obj')
+        generated_mesh = mesh_output_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
 
         message = 'INFO Exporting Mesh.'
         logging.info('Exporting Mesh.')
@@ -237,12 +344,10 @@ class meshing():
                                    write_triangle_uvs=True,
                                    print_progress=False)
 
-        
-        
         mesh_file_size = int(os.path.getsize(generated_mesh))
         origin = 'pc'
 
-        if mesh_file_size > 6000000000:
+        if mesh_file_size > 10000000000:
             
             mesh_depth = 11
             message = 'WARNING Mesh is not memory friedly. Retrying with safer parameters.'
@@ -300,8 +405,9 @@ class meshing():
                                     mincomponentdiag = p)
                     # if this is a generated file from exyn sensors, then we need to use 'safe' values different from the leica ones.
     
-                    if ".ply" in filename:
-                        t_hold = 0.36
+                    if ".ply" or ".ex" in filename:
+                        #t_hold = 0.36
+                        t_hold = 0.1
     
                     elif ".pts" in filename:
                         t_hold = 0.09
@@ -319,8 +425,8 @@ class meshing():
                     logging.info('Exporting Mesh.')
                     self.write_to_log(path, separator, message)
     
-                    newpath = simplified_output_folder + separator + filename.replace('ply', 'obj').replace('pts', 'obj')
-                    newpath_gen = gen_path_folder + separator + "raw_" + filename.replace('ply', 'obj').replace('pts', 'obj')
+                    newpath = simplified_output_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
+                    newpath_gen = gen_path_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
                     
                     ms.save_current_mesh(newpath,
                                          save_vertex_color=True,
@@ -335,6 +441,14 @@ class meshing():
                     
                     if 'True' in raw_obj:
                         
+                        try:
+                            shutil.rmtree("ARTAK_MM/DATA/PointClouds/" + folder_type + separator + pc_folder)
+                            
+                        except FileNotFoundError:
+                            pass                        
+                        
+                        # Remove the status flag for MM_GUI progressbar
+  
                         with open(log_folder + "status.log", "w") as status:
                             status.write("done")                      
                         
@@ -376,8 +490,9 @@ class meshing():
                         ms.apply_filter('meshing_remove_connected_component_by_diameter',
                                         mincomponentdiag=p)
     
-                        if ".ply" in filename:
-                            t_hold = 0.6
+                        if ".ply" or ".ex" in filename:
+                            #t_hold = 0.6
+                            t_hold = 0.36
     
                         elif ".pts" in filename:
                             t_hold = 0.095
@@ -396,8 +511,8 @@ class meshing():
     
                         message = 'INFO Exporting Mesh.'
                         
-                        newpath = simplified_output_folder + separator + filename.replace('ply', 'obj').replace('pts', 'obj')
-                        newpath_gen = gen_path_folder + separator + "raw_" + filename.replace('ply', 'obj').replace('pts', 'obj')
+                        newpath = simplified_output_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
+                        newpath_gen = gen_path_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
                         
                         ms.save_current_mesh(newpath,
                                              save_vertex_color=True,
@@ -462,8 +577,8 @@ class meshing():
                             #message = 'INFO Exporting Mesh.'
                             #self.write_to_log(path, separator, message)
     
-                            newpath = simplified_output_folder + separator + filename.replace('ply', 'obj').replace('pts', 'obj')
-                            newpath_gen = gen_path_folder + separator + "raw_" + filename.replace('ply', 'obj').replace('pts', 'obj')
+                            newpath = simplified_output_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
+                            newpath_gen = gen_path_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
                             
                             ms.save_current_mesh(newpath,
                                                  save_vertex_color=True,
@@ -496,10 +611,13 @@ class meshing():
                             # Cleanup
                             try:
                                 shutil.rmtree("ARTAK_MM/DATA/PointClouds/" + folder_type + separator + pc_folder)
+                                os.unlink(dest_after_xcloud)
+                                
                             # Remove the status flag for MM_GUI progressbar
-                            except FileNotFoundError:
-                                pass
                             
+                            except (FileNotFoundError, NameError):
+                                pass
+
                             with open(log_folder + "status.log", "w") as status:
                                 status.write("error")
  
@@ -539,7 +657,7 @@ class meshing():
 
             else:
                 
-                newpath1 = simplified_output_folder + separator + 'decimated_' + filename.replace('ply', 'obj').replace('pts', 'obj')
+                newpath1 = simplified_output_folder + separator + 'decimated_' + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', 'obj')
 
                 ms.save_current_mesh(newpath1,
                                      save_vertex_color=True,
@@ -601,9 +719,7 @@ class meshing():
         message = 'INFO End VC: ' + str(v_number) + '. End FC: ' + str(f_number) + "."
         self.write_to_log(path, separator, message)
 
-        newpath1 = simplified_output_folder + separator + 'decimated_' + filename.replace('ply', 'obj').replace(
-            'pts',
-            'obj')
+        newpath1 = simplified_output_folder + separator + 'decimated_' + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj')
 
         ms.save_current_mesh(newpath1,
                              save_vertex_color=True,
@@ -666,7 +782,7 @@ class meshing():
             
         percentage = pymeshlab.PercentageValue(2)
 
-        newpath_texturized = with_texture_output_folder + separator + filename.replace('ply', 'obj').replace('pts','obj').replace('decimated_', '')
+        newpath_texturized = with_texture_output_folder + separator + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj').replace('decimated_', '')
 
         model_path = model_dest_folder + separator + 'Model.obj'
 
@@ -714,10 +830,12 @@ class meshing():
 
         try:
             shutil.rmtree("ARTAK_MM/DATA/PointClouds/" + folder_type + separator + pc_folder)
-            # Remove the status flag for MM_GUI progressbar
-        except FileNotFoundError:
+            os.unlink(dest_after_xcloud)
+            
+        except (FileNotFoundError, NameError):
             pass
-
+        
+        # Remove the status flag for MM_GUI progressbar
         with open(log_folder + "status.log", "w") as status:
             status.write("done")
             
@@ -745,11 +863,11 @@ class meshing():
         compression = zipfile.ZIP_DEFLATED
         zip_file = with_texture_output_folder + separator + filename.replace('.obj', '').replace('.ply',
                                                                                                          '').replace(
-            '.pts', '') + '.zip'
+            '.pts', '').replace('.ex', '') + '.zip'
         with zipfile.ZipFile(zip_file, mode="w") as zf:
             for ext in extensions:
                 try:
-                    zf.write(with_texture_output_folder + separator + filename.replace('.obj', '').replace('.ply','').replace('.pts', '') + ext, filename.replace('.obj', '').replace('.ply', '').replace('.pts', '') + ext,
+                    zf.write(with_texture_output_folder + separator + filename.replace('.obj', '').replace('.ply','').replace('.pts', '') + ext, filename.replace('.obj', '').replace('.ply', '').replace('.pts', '').replace('.ex', '') + ext,
                              compress_type = compression, compresslevel = 9)
                 except FileExistsError:
                     pass

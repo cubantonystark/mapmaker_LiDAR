@@ -9,7 +9,9 @@ import win32gui, win32con
 this_program = win32gui.GetForegroundWindow()
 win32gui.ShowWindow(this_program, win32con.SW_HIDE)
 '''
-import random, psutil
+
+import xml.etree.ElementTree as ET
+import random, psutil, glob
 from datetime import datetime
 from PIL import Image
 import os, shutil, webview
@@ -19,7 +21,7 @@ import open3d as o3d
 We will create the work folders on first run. This code serves as a check in case the one of the working folders gets
 accidentaly deleted.
 '''
-dirs1 = ['ARTAK_MM/LOGS', 'ARTAK_MM/POST/Lidar', 'ARTAK_MM/DATA/PointClouds', 'ARTAK_MM/DATA/Generated_Mesh']
+dirs1 = ['ARTAK_MM/LOGS', 'ARTAK_MM/POST/Lidar', 'ARTAK_MM/DATA/PointClouds', 'ARTAK_MM/DATA/Generated_Mesh', 'ARTAK_MM/DATA/Scanner_Logs']
 
 # cleanup any straggler status file in case of disgraceful exit of either recon script
 
@@ -32,8 +34,9 @@ for dir in dirs1:
         continue
 
 import sys, time, threading, win32file, subprocess, pymeshlab
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 import customtkinter
+from CTkListbox import *
 import tkinter as tk
 from tkhtmlview import HTMLLabel
 from pathlib import Path
@@ -98,7 +101,7 @@ class App(customtkinter.CTk):
         super().__init__()
         self.once = once
         self.iconbitmap(default='gui_images/ARTAK_103.ico')
-        self.title("ARTAK 3D Map Maker || LiDAR || v1.0.2.")
+        self.title("ARTAK 3D Map Maker || LiDAR || v1.0.3.")
         self.geometry("1300x465")
         self.protocol('WM_DELETE_WINDOW', self.terminate_all)
 
@@ -125,10 +128,185 @@ class App(customtkinter.CTk):
         self.add_user_image = customtkinter.CTkImage(
             light_image=Image.open(os.path.join("gui_images/add_user_dark.png")),
             dark_image=Image.open(os.path.join("gui_images/add_user_light.png")), size=(20, 20))
+        
+        self.add_scanner_image = customtkinter.CTkImage(
+            light_image=Image.open(os.path.join("gui_images/folder_open_dark.png")),
+            dark_image=Image.open(os.path.join("gui_images/folder_open_white.png")), size=(20, 20))        
 
         # create fourth frame
         self.fourth_frame = customtkinter.CTkScrollableFrame(self, corner_radius=0, fg_color="transparent")
+        
+        # create fifth frame
+        self.fifth_frame = customtkinter.CTkScrollableFrame(self, corner_radius=0, fg_color="transparent")
+        
+        def attempt_connection(choice):
+            
+            log_entry = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+" INFO Connecting.\r"
+            self.update_download_log(log_entry)
+            self.write_to_runtime_log(log_entry)
 
+            cmd = ("netsh wlan connect name=\""+choice+"\" ssid=\""+choice+"\" interface=Wi-Fi")
+            out = subprocess.run(cmd, capture_output = True, text = True)
+            time.sleep(1)
+            cmd = "netsh WLAN show interfaces"
+            wifi = subprocess.check_output(cmd)
+            output = wifi.decode('utf-8')                             
+            
+            if choice in output:
+                
+                state = 'success'
+                
+            else:
+                
+                state = 'error'
+                
+            return state
+            
+        def combobox_callback(choice):
+            
+            c = 0
+            
+            if choice == " ":
+                return
+            
+            state = attempt_connection(choice)
+            
+            if 'success' in state:
+                
+                log_entry = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+" INFO Device connetion successful.\r"
+                self.update_download_log(log_entry)
+                self.write_to_runtime_log(log_entry)                
+                
+                log_entry = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+" INFO Retrieving exlogs.\r"
+                self.update_download_log(log_entry)
+                self.write_to_runtime_log(log_entry)
+                cmd = 'wsl --user mapmaker -e bash -c "/home/mapmaker/anaconda3/bin/python /home/mapmaker/exyn/retrieve.py"; exec bash'
+                os.system(cmd)        
+                log_entry = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+" INFO Exlogs retrieved.\r"
+                self.write_to_runtime_log(log_entry)
+                self.update_download_log(log_entry)
+                                
+            else:
+
+                while c < 3:
+                    
+                    time.sleep(2)
+                    output = attempt_connection(choice)
+                    c += 1
+                
+                messagebox.showerror('ARTAK 3D Map Maker', 'Cannot connect to device. Please make sure it\'s powered on and in range.')    
+                log_entry = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+" ERROR Cannot connect to device. PLease make sure it\'s powered on and in range.\r"
+                self.update_download_log(log_entry)
+                self.write_to_runtime_log(log_entry)   
+                
+                return
+                
+            with open("\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\exlogs.txt") as exlogs_list:
+                
+                options = exlogs_list.readlines()
+
+            self.listbox.delete(0,tk.END)
+            
+            for option in options:
+                
+                log_name, filesize = option.split(',')
+                self.listbox.insert(tk.END, log_name.rstrip().replace("xfiles/", '')+"        "+str(filesize))
+
+        scanners = glob.glob('./*.xml')
+        scanners_to_display = []
+        
+        scanners_to_display.append(" ")
+        
+        for scanner in scanners:
+            scanners_to_display.append(scanner.replace(".\\",'').replace(".xml",''))
+            
+        self.registered_scanners_label = customtkinter.CTkLabel(self.fifth_frame, text="Registered Scanners",
+                                                             font=customtkinter.CTkFont(size=15, weight="bold"))
+        self.registered_scanners_label.grid(row=0, column=0, columnspan = 2, sticky = "W", padx = 20)        
+                                   
+        combobox = customtkinter.CTkComboBox(master=self.fifth_frame,
+                                             values=scanners_to_display,
+                                             command=combobox_callback,
+                                             width = 570)
+        combobox.grid(row=1, column=0, columnspan = 2, padx=20, pady=10)
+        combobox.set(scanners_to_display[0])  # set initial value
+
+        def download_log(event):
+            
+            selection = event.widget.curselection()
+            
+            if len(selection) == 0:
+                
+                return
+            
+            else:
+
+                index = selection[0]
+                
+                selected_option = event.widget.get(index)          
+
+            def download_threaded(selected_option):
+   
+                filename, file_size = selected_option.split("      ")
+                
+                selected_option = filename.strip()
+                
+                with open("ARTAK_MM/LOGS/status.log", "w") as status:
+                    status.write("running")                 
+                
+                if os.path.exists("\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\exlogs\\"+selected_option):
+                    os.unlink("\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\exlogs\\"+selected_option)
+                
+                log_entry = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+" INFO Downloading Exlog "+selected_option+".\r"
+                self.write_to_runtime_log(log_entry)
+                self.update_download_log(log_entry)
+                
+                self.listbox.bindtags((self.listbox, self.fifth_frame, "all"))
+                
+                cmd = 'wsl --user mapmaker -e bash -c "sshpass -p \"ray\" scp eolian@192.168.2.1:xfiles/'+selected_option+' /home/mapmaker/exyn/exlogs/ && exit; exec bash"'
+                output = subprocess.run(cmd, capture_output=True, text=True)  
+                
+                
+                log_entry = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+" INFO Exlog download complete.\r"
+                self.write_to_runtime_log(log_entry)
+                self.update_download_log(log_entry)
+                
+                shutil.move("\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\exlogs\\"+selected_option, "ARTAK_MM/DATA/Scanner_Logs/"+selected_option)
+                
+                fullpath = "ARTAK_MM/DATA/Scanner_Logs/"+selected_option
+                
+                with open("ARTAK_MM/LOGS/runtime.log", "w") as runtime:
+                    
+                    runtime.write(str(fullpath))
+        
+                subprocess.Popen(["python", "MM_pc2mesh.py"])
+                #subprocess.Popen(["MM_pc2mesh.exe"])
+            
+            threading.Thread(target= lambda: download_threaded(selected_option)).start()
+        
+        self.exlog_list_label = customtkinter.CTkLabel(self.fifth_frame, text="Scans on Device",
+                                                             font=customtkinter.CTkFont(size=15, weight="bold"))
+        self.exlog_list_label.grid(row=6, column=0, columnspan = 2, sticky = "W", padx = 20)
+            
+        #listbox = tk.Listbox(self.fifth_frame, command = download_log, height = 200, width = 540)
+        
+        scrollbar = tk.Scrollbar(self.fifth_frame)
+        scrollbar.grid(row=7, column=1, sticky='nsw')
+        
+        self.listbox = tk.Listbox(self.fifth_frame, width=62, height = 12, font = customtkinter.CTkFont(size=20), selectmode=tk.BROWSE, exportselection=False, yscrollcommand=scrollbar.set)
+        self.listbox.grid(row=7, column=0, sticky = 'nse')  
+        
+        self.listbox.bind('<<ListboxSelect>>', download_log)
+        
+        scrollbar.config(command=self.listbox.yview)
+
+        self.scan_download_log_label = customtkinter.CTkLabel(self.fifth_frame, text="Download log",
+                                                             font=customtkinter.CTkFont(size=15, weight="bold"))
+        self.scan_download_log_label.grid(row=11, column=0, columnspan = 2, sticky = "W", padx = 20)        
+        
+        self.scan_download_log = customtkinter.CTkTextbox(self.fifth_frame, width = 580, height = 60)
+        self.scan_download_log.grid(row=12, column=0, columnspan = 2, padx=20, pady=10)  
+        
         # create navigation frame
         self.navigation_frame = customtkinter.CTkFrame(self, corner_radius=0)
         self.navigation_frame.grid(row=0, column=0, sticky="nsew")
@@ -147,7 +325,7 @@ class App(customtkinter.CTk):
                                                    image=self.home_image, anchor="w", command=self.home_button_event)
         self.home_button.grid(row=1, column=0, sticky="ew")
         
-        self.frame_2_button = customtkinter.CTkButton(self.navigation_frame, corner_radius=0, height=40,
+        self.frame_2_button = customtkinter.CTkButton(self.navigation_frame, corner_radius=0, height=10,
                                                       border_spacing=10, text="System Logs",
                                                       fg_color="transparent", text_color=("gray10", "gray90"),
                                                       hover_color=("gray70", "gray30"),
@@ -155,13 +333,21 @@ class App(customtkinter.CTk):
                                                       command=self.frame_2_button_event)
         self.frame_2_button.grid(row=2, column=0, sticky="ew")            
 
-        self.frame_4_button = customtkinter.CTkButton(self.navigation_frame, corner_radius=0, height=40,
-                                                      border_spacing=10, text="System Settings",
+        self.frame_4_button = customtkinter.CTkButton(self.navigation_frame, corner_radius=0, height=10,
+                                                      border_spacing=10, text="Settings",
                                                       fg_color="transparent", text_color=("gray10", "gray90"),
                                                       hover_color=("gray70", "gray30"),
                                                       image=self.add_user_image, anchor="w",
                                                       command=self.frame_4_button_event)
-        self.frame_4_button.grid(row=4, column=0, sticky="ew")
+        self.frame_4_button.grid(row=3, column=0, sticky="ew")
+        
+        self.frame_5_button = customtkinter.CTkButton(self.navigation_frame, corner_radius=0, height=10,
+                                                      border_spacing=10, text="Scanners",
+                                                      fg_color="transparent", text_color=("gray10", "gray90"),
+                                                      hover_color=("gray70", "gray30"),
+                                                      image=self.add_scanner_image, anchor="w",
+                                                      command=self.frame_5_button_event)
+        self.frame_5_button.grid(row=4, column=0, sticky="ew")        
 
         # create home frame
         self.home_frame = customtkinter.CTkFrame(self, corner_radius=0, fg_color="transparent")
@@ -194,7 +380,6 @@ class App(customtkinter.CTk):
         
         self.server_button_frame = customtkinter.CTkFrame(self)
         self.server_var = customtkinter.StringVar()
-        self.server_var.set('https://esp.eastus2.cloudapp.azure.com/')
     
         self.cloud_radio_button = customtkinter.CTkRadioButton(self.fourth_frame, text="Cloud",
                                                                    variable=self.server_var,
@@ -208,10 +393,10 @@ class App(customtkinter.CTk):
         
         # Local ARTAK Server
     
-        self.local_server_label = customtkinter.CTkLabel(self.fourth_frame, text="Local ARTAK Server")
+        self.local_server_label = customtkinter.CTkLabel(self.fourth_frame, text="Custom ARTAK Server")
         self.local_server_label.grid(row=4, column=0, padx=20, pady=10, sticky="ew")
         
-        self.local_server_ip_entry = customtkinter.CTkEntry(self.fourth_frame, placeholder_text="https://esp.eastus2.cloudapp.azure.com/", width = 300)
+        self.local_server_ip_entry = customtkinter.CTkEntry(self.fourth_frame, width = 300)
         self.local_server_ip_entry.grid(row=4, column=1, padx = 20, columnspan = 2, sticky="ew")
         
         ## Mesh Type
@@ -223,12 +408,12 @@ class App(customtkinter.CTk):
         self.mesh_from_pointcloud_type_var = customtkinter.StringVar()
         self.mesh_from_pointcloud_type_var.set("v1")
         
-        self.obj_radio_button = customtkinter.CTkRadioButton(self.fourth_frame, text="v1",
+        self.obj_radio_button = customtkinter.CTkRadioButton(self.fourth_frame, text="Block 1",
                                                                      variable=self.mesh_from_pointcloud_type_var,
                                                                      value="v1")
         self.obj_radio_button.grid(row=6, column=1, padx=20, pady=10)
 
-        self.tiles_radio_button2 = customtkinter.CTkRadioButton(self.fourth_frame, text="v2 (Cesium)",
+        self.tiles_radio_button2 = customtkinter.CTkRadioButton(self.fourth_frame, text="Block 2 (Tiles)",
                                                                 variable=self.mesh_from_pointcloud_type_var,
                                                                 value="v2")
         self.tiles_radio_button2.grid(row=6, column=2, padx=20, pady=10)           
@@ -289,11 +474,11 @@ class App(customtkinter.CTk):
         
         self.save_settings = customtkinter.CTkButton(self.fourth_frame, text="Save Settings", command=self.read_settings_and_save,
                                                         state="normal")
-        self.save_settings.grid(row=16, column=1, padx=20, pady=10)        
+        self.save_settings.grid(row=21, column=1, padx=20, pady=10)        
 
         # endregion
 
-        self.browse_label_pc = customtkinter.CTkLabel(self.home_frame, text="Process PointCloud")
+        self.browse_label_pc = customtkinter.CTkLabel(self.home_frame, text="Load File")
         self.browse_label_pc.grid(row=8, column=0, padx=20, pady=10)
 
         self.browse_button_pc = customtkinter.CTkButton(self.home_frame, text="Browse", command=self.gen_pc,
@@ -326,22 +511,39 @@ class App(customtkinter.CTk):
         
         if not os.path.exists("settings.cfg"):
             self.read_settings_and_save()
+        else:
+            self.read_settings_and_update()
             
-        log_entry = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+" INFO App startup complete\r"
+        log_entry = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+" INFO App Startup Complete.\r"
         
-        self.write_to_runtime_log(log_entry)
+        self.write_to_runtime_log(log_entry)    
         
+    
+    
+    def update_download_log(self, log_entry):
+        
+        self.scan_download_log.insert(tk.END, str(log_entry)+"\n")
+        self.scan_download_log.see(tk.END)
+        return        
+    
     def write_to_runtime_log(self, log_entry):
         
         with open("ARTAK_MM/LOGS/runtime.log", "w") as runtimelog:
-            log_entry = runtimelog.write(str(log_entry))
+            runtimelog.write(str(log_entry.strip()))
         return
+    
+    def read_from_exyn_runtime_log(self):
+        
+        cmd = 'wsl --user mapmaker -e bash -c "tail -1 /home/mapmaker/exyn/runtime.log && exit; exec bash"'
+        result = subprocess.check_output(cmd, shell = True)
+        result = result.decode("utf-8")
+        return result
     
     def read_from_runtime_log(self):
         
         with open("ARTAK_MM/LOGS/runtime.log", "r") as runtimelog:
             log_entry = runtimelog.read().strip()
-        return log_entry     
+        return log_entry
         
     def add_to_log_screen(self):
         
@@ -352,7 +554,6 @@ class App(customtkinter.CTk):
             log_entry = self.read_from_runtime_log()
             
             if prev_log_entry == log_entry:
-                
                 pass
             
             elif '_io.TextIOWrapper name' in log_entry:
@@ -367,7 +568,25 @@ class App(customtkinter.CTk):
                 self.output_text2.see(tk.END)
                 
             prev_log_entry = log_entry
-            time.sleep(0.25)          
+            time.sleep(0.25) 
+            
+    def add_to_log_screen_from_exyn_log(self):
+        
+        prev_log_entry_exyn = ""
+        
+        while True:
+            
+            log_entry_exyn = self.read_from_exyn_runtime_log()
+            
+            if prev_log_entry_exyn == log_entry_exyn:
+                pass
+                
+            else:
+                
+                self.output_text2.insert(tk.END, str(log_entry_exyn)+"\n")
+                self.output_text2.see(tk.END)
+                
+            prev_log_entry_exyn = log_entry_exyn
         
     def read_settings_and_save(self):
         
@@ -380,15 +599,15 @@ class App(customtkinter.CTk):
         upload_yn = self.upload_var.get()
         del_after_xfer = self.delete_after_transfer_var.get()
         
-        self.local_server_ip_entry.delete(0, tk.END)
-        self.local_server_ip_entry.insert(0, server_addr)
-        
         config.append(raw_obj)
         config.append(server_addr)
         config.append(resulting_mesh_type)
         config.append(auto_open)
         config.append(upload_yn)
         config.append(del_after_xfer)
+        
+        self.local_server_ip_entry.delete(0, tk.END)
+        self.local_server_ip_entry.insert(0, self.server_var.get())          
         
         #print(raw_obj, server_addr, resulting_mesh_type, auto_open, upload_yn, del_after_xfer)
         
@@ -398,6 +617,25 @@ class App(customtkinter.CTk):
                 settings.write(str(item)+"\r")
         
         return
+    
+    def read_settings_and_update(self):
+        
+        with open("settings.cfg", "r") as settings:
+            cfg = settings.readlines()
+            
+        raw_obj, server_addr, resulting_mesh_type, auto_open, upload_yn, del_after_xfer = cfg
+        
+        self.raw_obj.set(raw_obj.strip())
+        self.server_var.set(server_addr.strip())
+        self.mesh_from_pointcloud_type_var.set(resulting_mesh_type.strip())
+        self.auto_open_var.set(auto_open.strip())
+        self.upload_var.set(upload_yn.strip())
+        self.delete_after_transfer_var.set(del_after_xfer.strip())
+        
+        self.local_server_ip_entry.delete(0, tk.END)
+        self.local_server_ip_entry.insert(0, self.server_var.get())        
+        
+        return    
         
     def terminate_all(self):
         
@@ -412,6 +650,7 @@ class App(customtkinter.CTk):
         os.remove(os.getcwd() + "/ARTAK_MM/LOGS/kill.mm")
         os.system('@taskkill /im python.exe /F >nul 2>&1')
         os.system('@taskkill /im MM_pc2mesh.exe /F >nul 2>&1')
+        os.system('@taskkill /im wsl.exe /F >nul 2>&1')        
             
         current_system_pid = os.getpid()
 
@@ -430,7 +669,7 @@ class App(customtkinter.CTk):
 
     def gen_pc(self):
         
-        fullpath = filedialog.askopenfile(filetypes=(("PointClouds", "*.ply;*.pts;*.e57"), ("All files", "*.*")))
+        fullpath = filedialog.askopenfile(filetypes=(("PointClouds", "*.ply;*.pts;*.e57"), ("ExLogs", ".ex"), ("All files", "*.*")))
         fullpath = str(fullpath)
         
         with open("ARTAK_MM/LOGS/runtime.log", "w") as runtime:
@@ -470,6 +709,8 @@ class App(customtkinter.CTk):
                     self.progressbar_pc.configure(progress_color="green")
                     self.progressbar_pc.set(1)
                     
+                    self.listbox.bindtags((self.listbox, 'Listbox', '.', "all"))
+                    
                     if self.once == 1:
                         
                         pass
@@ -483,7 +724,9 @@ class App(customtkinter.CTk):
                     self.browse_button_pc.configure(state='normal')
                     self.progressbar_pc.stop()
                     self.progressbar_pc.configure(progress_color="red")
-                    self.progressbar_pc.set(1)                 
+                    self.progressbar_pc.set(1)   
+                    
+                    self.listbox.bindtags((self.listbox, 'Listbox', '.', "all"))
                 
             except FileNotFoundError:
                 pass         
@@ -593,6 +836,7 @@ class App(customtkinter.CTk):
         # set button color forv selected button
         self.home_button.configure(fg_color=("gray75", "gray25") if name == "home" else "transparent")
         self.frame_4_button.configure(fg_color=("gray75", "gray25") if name == "frame_4" else "transparent")
+        self.frame_5_button.configure(fg_color=("gray75", "gray25") if name == "frame_5" else "transparent")
 
         # show selected frame
         if name == "home":
@@ -609,8 +853,10 @@ class App(customtkinter.CTk):
             self.third_frame.grid_forget()
         if name == "frame_4":
             self.fourth_frame.grid(row=0, column=1, sticky="nsew")
+        if name == "frame_5":
+            self.fifth_frame.grid(row=0, column=1, sticky="nsew")        
         else:
-            self.fourth_frame.grid_forget()
+            self.fifth_frame.grid_forget()
 
     def home_button_event(self):
         self.select_frame_by_name("home")
@@ -623,6 +869,9 @@ class App(customtkinter.CTk):
 
     def frame_4_button_event(self):
         self.select_frame_by_name("frame_4")
+        
+    def frame_5_button_event(self):
+        self.select_frame_by_name("frame_5")    
 
     def change_appearance_mode_event(self, new_appearance_mode):
         customtkinter.set_appearance_mode(new_appearance_mode)
@@ -641,10 +890,18 @@ if __name__ == "__main__":
         os.remove("ARTAK_MM/LOGS/pc_type.log")
         
     if os.path.exists("ARTAK_MM/LOGS/status.log"):
-        os.remove("ARTAK_MM/LOGS/status.log")    
+        os.remove("ARTAK_MM/LOGS/status.log")
+        
+    if os.path.exists("\\\wsl.localhost\\Ubuntu-22.04\\home\\mapmaker\\exyn\\runtime.log"):
+        os.remove("\\\wsl.localhost\\Ubuntu-22.04\\home\\mapmaker\\exyn\\runtime.log")
 
     app = App()
+    
+    cmd = 'wsl --user mapmaker -e bash -c "touch /home/mapmaker/exyn/runtime.log && exit; exec bash"'
+    os.system(cmd)
+    
     threading.Thread(target=app.find_folders_with_obj,name = 't1').start()
     threading.Thread(target=app.display_activity_on_pc_recon, name = 't2').start()
     threading.Thread(target=app.add_to_log_screen, name = 't3').start()
+    threading.Thread(target=app.add_to_log_screen_from_exyn_log, name = 't4').start()
     app.mainloop()
