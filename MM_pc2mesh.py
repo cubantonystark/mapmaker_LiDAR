@@ -32,7 +32,21 @@ class meshing():
     
     def process_ply_as_tiles(self, with_texture_output_folder, fullpath, post_dest_folder, model_dest_folder):
         
-        path, filename = os.path.split(fullpath)
+        if '.ply' in fullpath:
+        
+            path, filename = os.path.split(fullpath)
+            
+        else:
+            
+            path, filename = os.path.split(fullpath)
+        
+            file, ext = os.path.splitext(filename)
+            
+            file = file.replace('.', '_')
+            
+            fullpath = file+ext
+            
+            fullpath = os.path.join(os.getcwd(), fullpath.replace('.ex', '.ply').replace('ARTAK_MM/DATA/Scanner_Logs/', ''))
         
         temp_folder = filename.replace('.ply', '').replace('.pts', '')
         
@@ -158,7 +172,7 @@ class meshing():
                 
                 xcloud_file_copied = exlog_file_name+".reindex.prc.id.cc.nrm.rgb.ply"
                 
-                dest_after_xcloud = os.path.join(os.getcwd(), xcloud_file_copied)
+                dest_after_xcloud = os.path.join(os.getcwd(), "ARTAK/_MM/DATA/Generated_PointClouds/"+xcloud_file_copied)
                 
             elif 'Chunk alignment fault; guard word was wrong' in logs:
                 
@@ -178,7 +192,7 @@ class meshing():
                 # Announce error and terminate.
                 messagebox.showerror('ARTAK 3D Map Maker', 'Corrupted Exlog. Unable to process. Aborting.')
                 
-                sys.exit() 
+                sys.exit()
 
         shutil.copy(origin_after_xcloud, dest_after_xcloud)
         
@@ -190,6 +204,11 @@ class meshing():
         logging.info('PointCloud Extracted.')   
         message = 'INFO PointCloud Extracted.'
         self.write_to_log(path, separator, message)
+        
+        if 'b2a_' in designator:
+            
+            self.process_ply_as_tiles(with_texture_output_folder, fullpath, post_dest_folder, model_dest_folder)
+            
         return fullpath
 
     def load_e57(self, e57path):
@@ -217,7 +236,7 @@ class meshing():
             cfg = settings.readlines()
             
         raw_obj, server_addr, resulting_mesh_type, auto_open, upload_yn, del_after_xfer = cfg
-        
+
         root = Tk()
         root.iconbitmap(default='gui_images/ARTAK_103_drk.ico')
         root.after(1, lambda: root.focus_force())
@@ -254,22 +273,22 @@ class meshing():
             designator = 'b1_'
             folder_type = 'Block_1'
             folder_suffix = '_b1'
-            texture_size = 10240          
+            texture_size = 10240  
+            
+        elif 'v2a' in resulting_mesh_type:
+            
+            designator = 'b2a_'
+            folder_type = 'Block_2a'
+            folder_suffix = '_b2a'   
             
         elif 'v2' in resulting_mesh_type:
             
             mesh_depth = 13
-            face_number = 350000
+            face_number = 3500000
             designator = 'b2_'
             folder_type = 'Block_2'
             folder_suffix = '_b2'
-            texture_size = 10240 
-            
-        elif 'v2_pc' in resulting_mesh_type:
-            
-            designator = 'b2a_'
-            folder_type = 'Block_2a'
-            folder_suffix = '_b2a'
+            texture_size = 16384 
 
         else:
             
@@ -278,7 +297,7 @@ class meshing():
             designator = 'b1_'
             folder_type = 'Block_1'
             folder_suffix = '_b1'
-            texture_size = 10240            
+            texture_size = 10240  
             
         today = date.today()
         now = datetime.now()
@@ -329,9 +348,8 @@ class meshing():
         gen_path_folder = "ARTAK_MM/DATA/Generated_Mesh"
         with_texture_output_folder = "ARTAK_MM/DATA/PointClouds/"+folder_type + separator + pc_folder.replace("b1_b1_", "b1_").replace("b2_b2_", "b2_") + separator + "final"+folder_suffix
         log_folder = "ARTAK_MM/LOGS/"
-        
         zip_file_for_compression = designator + filename.replace(".ex", ".zip").replace(".obj", ".zip").replace(".ply", ".zip").replace(".pts", ".zip")
-
+        
         # Create directories within the source folder if they dont exist
         if not os.path.exists(mesh_output_folder):
             os.makedirs(mesh_output_folder)
@@ -354,13 +372,17 @@ class meshing():
 
             with open(with_texture_output_folder + separator + logfilename + '.prj', 'w') as prj:
                 prj.write(str(prj_1) + str(zone) + str(prj_2))
-                
+
         if '.ex' in fullpath:
             
-            fullpath = self.process_exlog(fullpath)        
+            fullpath = self.process_exlog(fullpath)       
+            
+        if 'b2a_' in designator:
+            
+            self.process_ply_as_tiles(with_texture_output_folder, fullpath, post_dest_folder, model_dest_folder)        
                               
         if ".obj" in filename:
-            
+
             origin = 'obj'
             
             message = 'INFO Loading OBJ. File: '+str(fullpath)
@@ -383,14 +405,8 @@ class meshing():
         #message = 'INFO Processing to depth: ' + str(mesh_depth)
         #logging.info('Processing to depth: ' + str(mesh_depth))
         #self.write_to_log(path, separator, message) 
-        
-        if 'v2_pc' in resulting_mesh_type:
-                
-            self.process_ply_as_tiles(with_texture_output_folder, fullpath, post_dest_folder, model_dest_folder)
             
-        else:
-            
-            pcd = o3d.io.read_point_cloud(fullpath)
+        pcd = o3d.io.read_point_cloud(fullpath)
         
         self.downsample(pcd, texture_size, mesh_depth)
 
@@ -485,7 +501,7 @@ class meshing():
     
                     t_hold = diag / 200
     
-                    p = pymeshlab.PercentageValue(25)
+                    p = pymeshlab.PercentageValue(2)
                     message = 'INFO Refining.'
                     logging.info('Refining.')
                     self.write_to_log(path, separator, message)
@@ -568,7 +584,7 @@ class meshing():
                         diag = boundingbox.diagonal()
                         t_hold = diag / 200
     
-                        p = pymeshlab.PercentageValue(25)
+                        p = pymeshlab.PercentageValue(2)
     
                         logging.info('Refining.')
                         message = 'INFO Refining.'
@@ -644,7 +660,7 @@ class meshing():
                             boundingbox = ms.current_mesh().bounding_box()
                             diag = boundingbox.diagonal()
                             t_hold = diag / 200
-                            p = pymeshlab.PercentageValue(10)
+                            p = pymeshlab.PercentageValue(2)
                             logging.info('Refining.')
                             message = 'INFO Refining'
                             self.write_to_log(path, separator, message)
@@ -798,7 +814,7 @@ class meshing():
             self.write_to_log(path, separator, message)
             ms.apply_filter('meshing_decimation_quadric_edge_collapse',
                             targetfacenum=int(target_faces), targetperc=0,
-                            qualitythr=0.3,
+                            qualitythr=0.8,
                             optimalplacement=True,
                             preservenormal=True,
                             autoclean=True)
@@ -847,8 +863,9 @@ class meshing():
         ms.load_new_mesh(newpath1)       
         
         try:
-
+            
             itb = 3 # If itb overrun then texture needs to be bigger
+                
             m_method = 'Basic'
         
             ms.apply_filter('compute_texcoord_parametrization_triangle_trivial_per_wedge',
@@ -978,7 +995,7 @@ class meshing():
             
             os.makedirs(tiles_folder, exist_ok = True)
             
-            cmd = "Obj2Tiles --lods 1 --divisions 5 --lat "+str(lat)+" --lon "+str(lon)+" --alt "+str(elev)+" "+target_to_tile+" "+tiles_folder+" > "+log_folder + separator + "runtime.log"
+            cmd = "Obj2Tiles --lat "+str(lat)+" --lon "+str(lon)+" --alt "+str(elev)+" "+target_to_tile+" "+tiles_folder+" > "+log_folder + separator + "runtime.log"
             
             os.system(cmd) 
             
