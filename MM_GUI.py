@@ -1,20 +1,14 @@
 '''
-Compile with pyinstaller MM_GUI.py --icon=gui_images/ARTAK_103_drk.ico --collect-all=pymeshlab --onedir --collect-all=open3d --contents-directory _mm_gui
-
+Compile with pyinstaller MM_GUI.py --icon=gui_images/ARTAK_103_drk.ico --collect-all=pymeshlab --onedir --collect-all=open3d
 Make sure to comment the line: subprocess.Popen(["python", "MM_pc2mesh.py"])
-
 and uncomment: #subprocess.run(["MM_pc2mesh.exe"]) # Change to this when compiling .exe file
-                             
 
 
 import win32gui, win32con
-
 #This snippet hides the console in non compiled scripts. Done for aesthetics
-
 this_program = win32gui.GetForegroundWindow()
 win32gui.ShowWindow(this_program, win32con.SW_HIDE)
 '''
-
 import random, psutil
 from datetime import datetime
 from PIL import Image
@@ -104,8 +98,8 @@ class App(customtkinter.CTk):
         super().__init__()
         self.once = once
         self.iconbitmap(default='gui_images/ARTAK_103.ico')
-        self.title("ARTAK 3D Map Maker || LiDAR Edition")
-        self.geometry("1300x450")
+        self.title("ARTAK 3D Map Maker || LiDAR || v1.0.2.")
+        self.geometry("1300x465")
         self.protocol('WM_DELETE_WINDOW', self.terminate_all)
 
         # set grid layout 1x2
@@ -184,9 +178,19 @@ class App(customtkinter.CTk):
 
         # region settings frame
         
+        # Only Generate Raw OBJ
+        
+        self.raw_obj = customtkinter.BooleanVar()
+        self.raw_obj.set(False)
+    
+        self.auto_open_text = customtkinter.CTkLabel(self.fourth_frame, text="Generate Standalone Mesh Only")
+        self.auto_open_text.grid(row=0, column=0, padx=20, pady=10)
+        self.auto_open_switch = customtkinter.CTkSwitch(self.fourth_frame, text="", variable=self.raw_obj)
+        self.auto_open_switch.grid(row=0, column=1, padx=20, pady=10)        
+        
         ## Server Settings
         self.home_frame_server = customtkinter.CTkLabel(self.fourth_frame, text="Select ARTAK Server")
-        self.home_frame_server.grid(row=0, column=0, padx=20, pady=10)    
+        self.home_frame_server.grid(row=2, column=0, padx=20, pady=10)    
         
         self.server_button_frame = customtkinter.CTkFrame(self)
         self.server_var = customtkinter.StringVar()
@@ -195,34 +199,25 @@ class App(customtkinter.CTk):
         self.cloud_radio_button = customtkinter.CTkRadioButton(self.fourth_frame, text="Cloud",
                                                                    variable=self.server_var,
                                                                    value="https://esp.eastus2.cloudapp.azure.com/")
-        self.cloud_radio_button.grid(row=0, column=1, padx=20, pady=10)
+        self.cloud_radio_button.grid(row=2, column=1, padx=20, pady=10)
     
         self.local_radio_button = customtkinter.CTkRadioButton(self.fourth_frame, text="Local",
                                                                    variable=self.server_var,
                                                                    value="http://eoliancluster.local/")
-        self.local_radio_button.grid(row=0, column=2, padx=20, pady=10)        
+        self.local_radio_button.grid(row=2, column=2, padx=20, pady=10)        
         
+        # Local ARTAK Server
     
         self.local_server_label = customtkinter.CTkLabel(self.fourth_frame, text="Local ARTAK Server")
-        self.local_server_label.grid(row=5, column=0, padx=20, pady=10, sticky="ew")
+        self.local_server_label.grid(row=4, column=0, padx=20, pady=10, sticky="ew")
         
-        self.local_server_ip_entry = customtkinter.CTkEntry(self.fourth_frame, placeholder_text="http://eoliancluster.local/", width = 300)
-        self.local_server_ip_entry.grid(row=5, column=1, padx = 20, columnspan = 2, sticky="ew")
-        
-        ## Appearance Settings
-        
-        self.apperance_mode_label = customtkinter.CTkLabel(self.fourth_frame, text="App Screen Mode")
-        self.apperance_mode_label.grid(row=10, column=0, padx=20, pady=20, sticky="s")
-
-        self.appearance_mode_menu = customtkinter.CTkOptionMenu(self.fourth_frame,
-                                                                values=["Dark", "Light"],
-                                                                command=self.change_appearance_mode_event)
-        self.appearance_mode_menu.grid(row=10, column=1, padx=20, pady=20, sticky="nsew", columnspan=2)        
+        self.local_server_ip_entry = customtkinter.CTkEntry(self.fourth_frame, placeholder_text="https://esp.eastus2.cloudapp.azure.com/", width = 300)
+        self.local_server_ip_entry.grid(row=4, column=1, padx = 20, columnspan = 2, sticky="ew")
         
         ## Mesh Type
         
         self.home_frame_button_4 = customtkinter.CTkLabel(self.fourth_frame, text="Generated Map type")
-        self.home_frame_button_4.grid(row=7, column=0, padx=20, pady=10)
+        self.home_frame_button_4.grid(row=6, column=0, padx=20, pady=10)
 
         self.button_frame = customtkinter.CTkFrame(self)
         self.mesh_from_pointcloud_type_var = customtkinter.StringVar()
@@ -231,12 +226,22 @@ class App(customtkinter.CTk):
         self.obj_radio_button = customtkinter.CTkRadioButton(self.fourth_frame, text="v1",
                                                                      variable=self.mesh_from_pointcloud_type_var,
                                                                      value="v1")
-        self.obj_radio_button.grid(row=7, column=1, padx=20, pady=10)
+        self.obj_radio_button.grid(row=6, column=1, padx=20, pady=10)
 
         self.tiles_radio_button2 = customtkinter.CTkRadioButton(self.fourth_frame, text="v2 (Cesium)",
                                                                 variable=self.mesh_from_pointcloud_type_var,
                                                                 value="v2")
-        self.tiles_radio_button2.grid(row=7, column=2, padx=20, pady=10)   
+        self.tiles_radio_button2.grid(row=6, column=2, padx=20, pady=10)           
+        
+        ## Appearance Settings
+        
+        self.apperance_mode_label = customtkinter.CTkLabel(self.fourth_frame, text="App Screen Mode")
+        self.apperance_mode_label.grid(row=8, column=0, padx=20, pady=20, sticky="s")
+
+        self.appearance_mode_menu = customtkinter.CTkOptionMenu(self.fourth_frame,
+                                                                values=["Dark", "Light"],
+                                                                command=self.change_appearance_mode_event)
+        self.appearance_mode_menu.grid(row=8, column=1, padx=20, pady=20, sticky="nsew", columnspan=2)        
         
         ## Auto Open
         
@@ -244,25 +249,25 @@ class App(customtkinter.CTk):
         self.auto_open_var.set(True)
     
         self.auto_open_text = customtkinter.CTkLabel(self.fourth_frame, text="Auto open Map after Completion?")
-        self.auto_open_text.grid(row=12, column=0, padx=20, pady=10)
-        self.auto_open_switch = customtkinter.CTkSwitch(self.fourth_frame, text="Yes", variable=self.auto_open_var)
-        self.auto_open_switch.grid(row=12, column=1, padx=20, pady=10) 
+        self.auto_open_text.grid(row=10, column=0, padx=20, pady=10)
+        self.auto_open_switch = customtkinter.CTkSwitch(self.fourth_frame, text="", variable=self.auto_open_var)
+        self.auto_open_switch.grid(row=10, column=1, padx=20, pady=10) 
         
         ## Auto upload after completion
         
         self.upload_label = customtkinter.CTkLabel(self.fourth_frame, text="Upload After Completion")
-        self.upload_label.grid(row=13, column=0, padx=20, pady=10)
+        self.upload_label.grid(row=12, column=0, padx=20, pady=10)
 
         self.upload_var = customtkinter.StringVar()
         self.upload_var.set("N")
 
         self.upload_yes_radio_button = customtkinter.CTkRadioButton(self.fourth_frame, text="N", variable=self.upload_var,
                                                              value="N")
-        self.upload_yes_radio_button.grid(row=13, column=1, padx=20, pady=10)
+        self.upload_yes_radio_button.grid(row=12, column=1, padx=20, pady=10)
 
         self.upload_no_radio_button = customtkinter.CTkRadioButton(self.fourth_frame, text="Y", variable=self.upload_var,
                                                             value="Y")
-        self.upload_no_radio_button.grid(row=13, column=2, padx=20, pady=10)         
+        self.upload_no_radio_button.grid(row=12, column=2, padx=20, pady=10)         
         
         ## Delete after upload
         
@@ -284,7 +289,7 @@ class App(customtkinter.CTk):
         
         self.save_settings = customtkinter.CTkButton(self.fourth_frame, text="Save Settings", command=self.read_settings_and_save,
                                                         state="normal")
-        self.save_settings.grid(row=15, column=1, padx=20, pady=10)        
+        self.save_settings.grid(row=16, column=1, padx=20, pady=10)        
 
         # endregion
 
@@ -322,7 +327,7 @@ class App(customtkinter.CTk):
         if not os.path.exists("settings.cfg"):
             self.read_settings_and_save()
             
-        log_entry = str(datetime.now())+" App startup complete\r"
+        log_entry = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+" INFO App startup complete\r"
         
         self.write_to_runtime_log(log_entry)
         
@@ -350,8 +355,14 @@ class App(customtkinter.CTk):
                 
                 pass
             
+            elif '_io.TextIOWrapper name' in log_entry:
+                    pass
+                
+            elif 'None' in log_entry:
+                    pass            
+                
             else:
-                        
+                
                 self.output_text2.insert(tk.END, str(log_entry)+"\n")
                 self.output_text2.see(tk.END)
                 
@@ -362,6 +373,7 @@ class App(customtkinter.CTk):
         
         config = []
         
+        raw_obj = self.raw_obj.get()
         server_addr = self.server_var.get()
         resulting_mesh_type = self.mesh_from_pointcloud_type_var.get()
         auto_open = self.auto_open_var.get()
@@ -371,13 +383,14 @@ class App(customtkinter.CTk):
         self.local_server_ip_entry.delete(0, tk.END)
         self.local_server_ip_entry.insert(0, server_addr)
         
+        config.append(raw_obj)
         config.append(server_addr)
         config.append(resulting_mesh_type)
         config.append(auto_open)
         config.append(upload_yn)
         config.append(del_after_xfer)
         
-        #print(server_addr, resulting_mesh_type, auto_open, upload_yn, del_after_xfer)
+        #print(raw_obj, server_addr, resulting_mesh_type, auto_open, upload_yn, del_after_xfer)
         
         with open("settings.cfg", "w") as settings:
             
@@ -397,6 +410,7 @@ class App(customtkinter.CTk):
             os.remove("ARTAK_MM/LOGS/status.log")
             
         os.remove(os.getcwd() + "/ARTAK_MM/LOGS/kill.mm")
+        os.system('@taskkill /im python.exe /F >nul 2>&1')
         os.system('@taskkill /im MM_pc2mesh.exe /F >nul 2>&1')
             
         current_system_pid = os.getpid()
@@ -415,6 +429,13 @@ class App(customtkinter.CTk):
         os.startfile(cmd)
 
     def gen_pc(self):
+        
+        fullpath = filedialog.askopenfile(filetypes=(("PointClouds", "*.ply;*.pts;*.e57"), ("All files", "*.*")))
+        fullpath = str(fullpath)
+        
+        with open("ARTAK_MM/LOGS/runtime.log", "w") as runtime:
+            
+            runtime.write(str(fullpath))
 
         subprocess.Popen(["python", "MM_pc2mesh.py"])
         
@@ -469,20 +490,7 @@ class App(customtkinter.CTk):
                 
             time.sleep(3)
 
-    def browse_directory(self):
-        path = filedialog.askdirectory()
-
-        if path:
-            print(f"Selected Directory: {path}")
-            threading.Thread(name = 't6', target=self.process_files, kwargs=({'folder_path': path})).start()
-
-    def check_project_status(self):
-        status = self.job_queue_monitor()
-        self.home_frame_text = status
-
     def label_button_frame_event(self, item):
-        #print(f"label button frame clicked: {item}")
-        
         self.open_obj(item)
 
     class TextRedirector:
