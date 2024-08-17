@@ -13,7 +13,7 @@ import open3d.visualization.rendering as rendering
 from datetime import date, datetime
 import PIL.Image
 import py3dtiles
-import os, platform, shutil, zipfile, logging, sys, glob, utm, time, pymeshlab, psutil, threading
+import os, platform, shutil, zipfile, logging, sys, glob, utm, time, pymeshlab, psutil, threading, copy
 from tkinter import *
 from tkinter import ttk
 from tkinter import filedialog, messagebox
@@ -28,29 +28,64 @@ logging.basicConfig(level=level, format='%(asctime)s \033[1;34;40m%(levelname)-8
 
 o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Error)
 
-class meshing():
+class pc2mesh():
     
-    def process_ply_as_tiles(self, with_texture_output_folder, fullpath, post_dest_folder, model_dest_folder):
+    def load_pts(self, fullpath):
         
-        if '.ply' in fullpath:
+        message = 'INFO Converting PointCloud. File: ' + str(fullpath)
+        logging.info('Converting PointCloud. File: ' + str(fullpath))
+        self.write_to_log(path, separator, message)                
         
-            path, filename = os.path.split(fullpath)
-            
-        else:
-            
-            path, filename = os.path.split(fullpath)
+        pcd = o3d.io.read_point_cloud(fullpath)
+
+        fullpath = fullpath.replace("pts", "ply")  
         
-            file, ext = os.path.splitext(filename)
+        o3d.io.write_point_cloud(fullpath,
+                                 pcd)
+
+        return fullpath    
+    
+    def load_e57(self, fullpath):
+        
+        message = 'INFO Converting PointCloud. File: ' + str(fullpath)
+        logging.info('Converting PointCloud. File: ' + str(fullpath))
+        self.write_to_log(path, separator, message)                
+        
+        ms = pymeshlab.MeshSet()
+        ms.load_new_mesh(fullpath)
+        fullpath = fullpath.replace("e57", "ply")  
+        
+        ms.save_current_mesh(fullpath,
+                             save_vertex_color=True,
+                             save_vertex_coord=True,
+                             save_vertex_normal=True,
+                             save_face_color=True,
+                             save_wedge_texcoord=True,
+                             save_wedge_normal=True)
+
+        return fullpath
+
+    def process_ply_as_tiles(self, with_texture_output_folder, fullpath, post_dest_folder, model_dest_folder):  
+        
+        path, filename = os.path.split(fullpath)
+
+        path, filename = os.path.split(fullpath)
+    
+        file, ext = os.path.splitext(filename)
+        
+        file = file.replace('.', '_')
+        
+        fullpath = path+separator+file+ext
+        
+        fullpath = os.path.join(os.getcwd(), fullpath.replace('.ex', '.ply').replace('ARTAK_MM/DATA/Scanner_Logs/', ''))
             
-            file = file.replace('.', '_')
-            
-            fullpath = file+ext
-            
-            fullpath = os.path.join(os.getcwd(), fullpath.replace('.ex', '.ply').replace('ARTAK_MM/DATA/Scanner_Logs/', ''))
+        message = 'INFO Loading PointCloud. File: ' + str(fullpath)
+        logging.info('Loading PointCloud. File: ' + str(fullpath))
+        self.write_to_log(path, separator, message)        
         
         temp_folder = filename.replace('.ply', '').replace('.pts', '')
         
-        model_filename = 'b2a_Model.ply'
+        model_filename = 'tpc_Model.ply'
         
         outfolder = with_texture_output_folder+separator+designator+temp_folder
         
@@ -61,9 +96,17 @@ class meshing():
         message = 'INFO Creating Tiles.'
         self.write_to_log(path, separator, message)          
         
-        cmd = "py3dtiles convert " + fullpath + " --out " + outfolder + " -v > "+log_folder + separator + "runtime.log"   
-
-        os.system(cmd)
+        try:
+            
+            cmd = "py3dtiles convert " + fullpath + " --out " + outfolder + " --srs_in 4979 -v > "+log_folder + separator + "runtime.log"   
+      
+            os.system(cmd)
+            
+        except ValueError:
+            
+            message = 'ERROR This PointCloud cannot be tiled. Aborting.'
+            logging.error('This PointCloud cannot be tiled. Aborting.')
+            self.write_to_log(path, separator, message)            
         
         logging.info('Compressing.')    
         message = 'INFO Compressing.'
@@ -71,10 +114,33 @@ class meshing():
         
         shutil.make_archive(post_dest_folder + separator + designator + temp_folder, 'zip', outfolder)
         
-        shutil.copy2(fullpath, model_dest_folder + "/" + model_filename) 
+        # Since this PC is too heavy to be displayed by O3d, we will downsample it to make it ligter and display better
         
-        shutil.rmtree("ARTAK_MM/DATA/PointClouds/" + folder_type + separator + pc_folder)
+        pcd = o3d.io.read_point_cloud(fullpath)
         
+        vox_size = 0.05
+            
+        downpcd = pcd.voxel_down_sample(voxel_size = vox_size)
+        
+        model_destination = os.path.join(model_dest_folder, model_filename)
+        
+        o3d.io.write_point_cloud(model_destination, 
+                                    downpcd, 
+                                    format='auto', 
+                                    write_ascii=False, 
+                                    compressed=False, 
+                                    print_progress=False)
+        
+        shutil.rmtree("ARTAK_MM/DATA/Processing/" + folder_type + separator + pc_folder)
+        
+        if os.path.exists("coords.txt"):
+            
+            os.remove("coords.txt")
+            
+        if os.path.exists("exlogs.txt"):
+            
+            os.remove("exlogs.txt")        
+            
         try:
             
             os.unlink(dest_after_xcloud)
@@ -94,15 +160,15 @@ class meshing():
         message = 'INFO Processing Complete.\n'
         logging.info('Processing Complete.')
         self.write_to_log(path, separator, message)
-        messagebox.showinfo('ARTAK 3D Map Maker', 'Reconstruction Complete.')
+        messagebox.showinfo('ARTAK 3D Map Maker', 'Tiling Process Complete.')
         
         current_system_pid = os.getpid()
     
         ThisSystem = psutil.Process(current_system_pid)
         ThisSystem.terminate()          
         
-        sys.exit()
-
+        sys.exit()    
+    
     def process_exlog(self, exlog_path):
         
         global dest_after_xcloud
@@ -110,8 +176,6 @@ class meshing():
         exlog_file, exlog_file_extension = os.path.splitext(exlog_path)
         
         exlog_filepath, exlog_file_name = os.path.split(exlog_file)
-        
-        exlog_file_name = exlog_file_name.replace(".", '_')
         
         exlog_filename_converted = exlog_file_name+exlog_file_extension
         
@@ -123,12 +187,12 @@ class meshing():
         
         origin_after_xcloud = "\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\exlogs\\"+gen_file_excloud
         
-        dest_after_xcloud = os.path.join(os.getcwd(), xcloud_file_copied)
+        dest_after_xcloud = os.path.join(os.getcwd(), 'ARTAK_MM/DATA/Generated_PointClouds/'+xcloud_file_copied)
         
         logging.info('Extracting PointCloud.')    
         message = 'INFO Extracting PointCloud.'
         self.write_to_log(path, separator, message)         
-        
+
         shutil.copy(exlog_path, dest)
 
         cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE='+exlog_filename_converted+' && /snap/bin/docker load < /home/mapmaker/exyn/excloud/exynai-runtime-bionic_23.10.0_base.tar && /snap/bin/docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-bionic:23.10.0_base excloud -i /home/exlogs/$LOGFILE --colors --keep_uncolorized --d-cloud_remove_nonstatic_params-trajectory_params-max_dataset_duration 3600 -w /home/exlogs | tee /home/mapmaker/exyn/runtime.log && exit; exec bash"'
@@ -205,42 +269,34 @@ class meshing():
         message = 'INFO PointCloud Extracted.'
         self.write_to_log(path, separator, message)
         
-        if 'b2a_' in designator:
+        if 'tpc_' in designator:
             
             self.process_ply_as_tiles(with_texture_output_folder, fullpath, post_dest_folder, model_dest_folder)
+        
+        else:
             
-        return fullpath
-
-    def load_e57(self, e57path):
+            return fullpath    
+    
+    def get_file(self):
         
-        mesh_depth = 13
-        ms = pymeshlab.MeshSet()
-        ms.load_new_mesh(e57path)
-        fullpath = e57path.replace("e57", "ply")  
+        global file_ext_check, file_origin, zip_file_for_compression, raw_obj, server_addr, resulting_mesh_type, auto_open, swap_axis, path, filename, mesh_output_folder, gen_path_folder, simplified_output_folder, with_texture_output_folder, obj_file, separator, c, log_name, lat, lon, elev, utm_easting, utm_northing, zone, log_name, log_folder, pc_folder, post_dest_folder, model_dest_folder, face_number, designator, folder_type, folder_suffix, texture_size
         
-        ms.save_current_mesh(fullpath,
-                             save_vertex_color=True,
-                             save_vertex_coord=True,
-                             save_vertex_normal=True,
-                             save_face_color=True,
-                             save_wedge_texcoord=True,
-                             save_wedge_normal=True)
-
-        return fullpath, mesh_depth
-
-    def get_PointCloud(self):
-        
-        global zip_file_for_compression, raw_obj, server_addr, resulting_mesh_type, auto_open, swap_axis, path, filename, mesh_output_folder, gen_path_folder, simplified_output_folder, with_texture_output_folder, obj_file, separator, c, log_name, lat, lon, elev, utm_easting, utm_northing, zone, log_name, log_folder, pc_folder, post_dest_folder, model_dest_folder, face_number, designator, folder_type, folder_suffix, texture_size
-
-        with open("settings.cfg", "r") as settings:
-            cfg = settings.readlines()
-            
-        raw_obj, server_addr, resulting_mesh_type, auto_open, upload_yn, del_after_xfer = cfg
-
         root = Tk()
         root.iconbitmap(default='gui_images/ARTAK_103_drk.ico')
         root.after(1, lambda: root.focus_force())
         root.withdraw()
+        
+        with open("settings.cfg", "r") as settings:
+            cfg = settings.readlines()
+            
+        raw_obj, server_addr, resulting_mesh_type, auto_open, upload_yn, del_after_xfer = cfg
+        
+        raw_obj = raw_obj.rstrip()
+        server_addr = server_addr.rstrip()
+        resulting_mesh_type = resulting_mesh_type.rstrip()
+        auto_open = auto_open.rstrip()
+        upload_yn = upload_yn.rstrip()
+        del_after_xfer = del_after_xfer.rstrip()
         
         with open("coords.txt", "r") as coords:
             
@@ -251,54 +307,52 @@ class meshing():
         lat = lat.strip()
         lon = lon.strip()
         elev = elev.strip()
-              
+        
         with open("ARTAK_MM/LOGS/runtime.log", "r") as runtime:
-            
             fullpath = runtime.read().strip()
             
         if 'None' in fullpath:
             
             current_system_pid = os.getpid()
-        
             ThisSystem = psutil.Process(current_system_pid)
             ThisSystem.terminate() 
             
         with open("ARTAK_MM/LOGS/status.log", "w") as status:
             status.write("running") 
             
-        if 'v1' in resulting_mesh_type:
+        if resulting_mesh_type == "m":
             
             mesh_depth = 13
-            face_number = 350000
-            designator = 'b1_'
-            folder_type = 'Block_1'
-            folder_suffix = '_b1'
-            texture_size = 10240  
+            face_number = 500000
+            designator = 'm_'
+            folder_type = 'b1'
+            folder_suffix = '_m'
+            texture_size = 8192 
             
-        elif 'v2a' in resulting_mesh_type:
-            
-            designator = 'b2a_'
-            folder_type = 'Block_2a'
-            folder_suffix = '_b2a'   
-            
-        elif 'v2' in resulting_mesh_type:
+        elif resulting_mesh_type == "tm":
             
             mesh_depth = 13
-            face_number = 3500000
-            designator = 'b2_'
-            folder_type = 'Block_2'
-            folder_suffix = '_b2'
-            texture_size = 16384 
+            face_number = 4500000
+            designator = 'tm_'
+            folder_type = 'b2'
+            folder_suffix = '_tm'
+            texture_size = 16384         
+            
+        elif resulting_mesh_type == "tpc":
+            
+            designator = 'tpc_'
+            folder_type = 'b2a'
+            folder_suffix = '_tpc'   
 
         else:
             
             mesh_depth = 13
-            face_number = 100000
-            designator = 'b1_'
-            folder_type = 'Block_1'
-            folder_suffix = '_b1'
-            texture_size = 10240  
-            
+            face_number = 500000
+            designator = 'm_'
+            folder_type = 'b1'
+            folder_suffix = '_m'
+            texture_size = 8192  
+        
         today = date.today()
         now = datetime.now()
         d = today.strftime("%d%m%Y")
@@ -324,29 +378,38 @@ class meshing():
         path, filename = os.path.split(fullpath)
         path = path.replace("<_io.TextIOWrapper name='", '')
         filename = filename.replace("' mode='r' encoding='cp1252'>", '')
+        
+        filename1 = os.path.join(path, filename)
+
+        file_name, extension = os.path.splitext(filename)
+        
+        file_name = file_name.replace(".", '_')
+        
+        filename = file_name+extension        
 
         fullpath = path + separator + filename
+        
+        if os.path.exists(filename1):
+            
+            os.rename(filename1, fullpath)
 
         if 'None' in fullpath:
             sys.exit()
-
-        if '.e57' in fullpath:
-            fullpath, mesh_depth = self.load_e57(fullpath)
             
         path, filename = os.path.split(fullpath)
-
+        
         logfilename = designator + filename.replace('.ply', '').replace('.pts', '').replace('.obj', '').replace('.e57', '').replace('.ex', '')
         pc_folder = logfilename
         
         log_name = designator + filename.replace('.ply', '').replace('.pts', '').replace('.obj', '').replace('.e57', '').replace('.ex', '') + "_" + str(d) + "_" + str(ct) + ".log"
 
         # Derive destination folders from source path
-        post_dest_folder = "ARTAK_MM/POST/Lidar" + separator + pc_folder.replace("b1_b1_", "b1_").replace("b2_b2_", "b2_") + separator + "Data"
-        model_dest_folder = "ARTAK_MM/POST/Lidar" + separator + pc_folder.replace("b1_b1_", "b1_").replace("b2_b2_", "b2_") + separator + "Data/Model"
-        mesh_output_folder = "ARTAK_MM/DATA/PointClouds/"+folder_type + separator + pc_folder.replace("b1_b1_", "b1_").replace("b2_b2_", "b2_") + separator + "mesh"+folder_suffix
-        simplified_output_folder = "ARTAK_MM/DATA/PointClouds/"+folder_type + separator + pc_folder.replace("b1_b1_", "b1_").replace("b2_b2_", "b2_") + separator + "simplified"+folder_suffix
+        post_dest_folder = "ARTAK_MM/POST/Lidar" + separator + pc_folder.replace("m_m_", "m_").replace("tm_tm_", "tm_") + separator + "Data"
+        model_dest_folder = "ARTAK_MM/POST/Lidar" + separator + pc_folder.replace("m_m_", "m_").replace("tm_tm_", "tm_") + separator + "Data/Model"
+        mesh_output_folder = "ARTAK_MM/DATA/Processing/"+folder_type + separator + pc_folder.replace("m_m_", "m_").replace("tm_tm_", "tm_") + separator + "mesh"+folder_suffix
+        simplified_output_folder = "ARTAK_MM/DATA/Processing/"+folder_type + separator + pc_folder.replace("m_m_", "m_").replace("tm_tm_", "tm_") + separator + "simplified"+folder_suffix
         gen_path_folder = "ARTAK_MM/DATA/Generated_Mesh"
-        with_texture_output_folder = "ARTAK_MM/DATA/PointClouds/"+folder_type + separator + pc_folder.replace("b1_b1_", "b1_").replace("b2_b2_", "b2_") + separator + "final"+folder_suffix
+        with_texture_output_folder = "ARTAK_MM/DATA/Processing/"+folder_type + separator + pc_folder.replace("m_m_", "m_").replace("tm_tm_", "tm_") + separator + "final"+folder_suffix
         log_folder = "ARTAK_MM/LOGS/"
         zip_file_for_compression = designator + filename.replace(".ex", ".zip").replace(".obj", ".zip").replace(".ply", ".zip").replace(".pts", ".zip")
         
@@ -361,8 +424,24 @@ class meshing():
             os.makedirs(post_dest_folder, mode=777)
         if not os.path.exists(model_dest_folder):
             os.makedirs(model_dest_folder, mode=777)
+                
+        if '.e57' in fullpath:
+            
+            fullpath = self.load_e57(fullpath)     
+            
+        if '.pts' in fullpath:
+            
+            fullpath = self.load_pts(fullpath)         
+            
+        if '.ex' in fullpath:
+            
+            fullpath = self.process_exlog(fullpath)       
+            
+        if 'tpc_' in designator:
+            
+            self.process_ply_as_tiles(with_texture_output_folder, fullpath, post_dest_folder, model_dest_folder)         
 
-        if "b1_" in designator:
+        if "m_" in designator:
             # Create xyz and prj based on lat and lon provided
             prj_1 = 'PROJCS["WGS 84 / UTM zone '
             prj_2 = '",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-81],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32617"]]'
@@ -372,21 +451,14 @@ class meshing():
 
             with open(with_texture_output_folder + separator + logfilename + '.prj', 'w') as prj:
                 prj.write(str(prj_1) + str(zone) + str(prj_2))
-
-        if '.ex' in fullpath:
-            
-            fullpath = self.process_exlog(fullpath)       
-            
-        if 'b2a_' in designator:
-            
-            self.process_ply_as_tiles(with_texture_output_folder, fullpath, post_dest_folder, model_dest_folder)        
-                              
+              
         if ".obj" in filename:
 
             origin = 'obj'
             
             message = 'INFO Loading OBJ. File: '+str(fullpath)
-            logging.info('Loading OBJ. File: '+str(fullpath))            
+            logging.info('Loading OBJ. File: '+str(fullpath))
+            file_origin = fullpath
             self.write_to_log(path, separator, message)
             shutil.copy(fullpath, simplified_output_folder)
             shutil.rmtree(mesh_output_folder)
@@ -402,14 +474,15 @@ class meshing():
         message = 'INFO Loading PointCloud. File: ' + str(fullpath)
         logging.info('Loading PointCloud. File: ' + str(fullpath))
         self.write_to_log(path, separator, message)
+        file_ext_check = fullpath
         #message = 'INFO Processing to depth: ' + str(mesh_depth)
         #logging.info('Processing to depth: ' + str(mesh_depth))
         #self.write_to_log(path, separator, message) 
-            
+        
         pcd = o3d.io.read_point_cloud(fullpath)
         
-        self.downsample(pcd, texture_size, mesh_depth)
-
+        self.downsample(pcd, texture_size, mesh_depth)     
+    
     def downsample(self, pcd, texture_size, mesh_depth):
         # We need to downsample the PointCloud to make it less dense and easier to work with
         message = "INFO "+str(pcd)
@@ -418,12 +491,15 @@ class meshing():
         message = "INFO Downsampling."
         logging.info("Downsampling.")
         self.write_to_log(path, separator, message)
-        downpcd = pcd.voxel_down_sample(voxel_size = 0.02)
+        
+        vox_size = 0.02
+            
+        downpcd = pcd.voxel_down_sample(voxel_size = vox_size)
+
         logging.info(str(downpcd)+"\r")
         message = "INFO "+str(downpcd)
         self.write_to_log(path, separator, message)
-        self.compute_normals_and_generate_mesh(downpcd, mesh_depth, texture_size)
-
+        self.compute_normals_and_generate_mesh(downpcd, mesh_depth, texture_size)  
     def compute_normals_and_generate_mesh(self, downpcd, mesh_depth, texture_size):
 
         # Since some PointClouds don't include normals information (needed for texture and color extraction) we will have to calculate it.
@@ -454,17 +530,18 @@ class meshing():
                                    print_progress=False)
 
         mesh_file_size = int(os.path.getsize(generated_mesh))
-        origin = 'pc'
         
-        if mesh_file_size > 15000000000:
+        if mesh_file_size > 20000000000:
             
             mesh_depth = 12
+            origin = 'pc'
             message = 'WARNING Mesh is not memory friedly. Retrying with safer parameters.'
             logging.warning('Mesh is not memory friedly. Retrying with safer parameters.')
             self.write_to_log(path, separator, message)
-            self.compute_normals_and_generate_mesh(downpcd, mesh_depth, texture_size, origin)
+            self.compute_normals_and_generate_mesh(downpcd, mesh_depth, texture_size)
 
         else:
+            origin = 'pc'
             self.mesh_processing(generated_mesh, texture_size, origin)
 
     def mesh_processing(self, generated_mesh, texture_size, origin):
@@ -513,19 +590,23 @@ class meshing():
                     ms.apply_filter('meshing_remove_connected_component_by_diameter',
                                     mincomponentdiag = p)
                     # if this is a generated file from exyn sensors, then we need to use 'safe' values different from the leica ones.
+                    
+                    file_ext_check_filename, file_ext_check_extension = os.path.splitext(file_ext_check)
     
-                    if ".ply" or ".ex" in filename:
-                        #t_hold = 0.36
-                        t_hold = 0.1
-    
-                    elif ".pts" in filename:
-                        t_hold = 0.09
-    
+                    if ".ply" in file_ext_check_extension or ".ex" in file_ext_check_extension:
+                        
+                        t_hold = 0.12
+
+                    elif ".pts" in file_ext_check_extension or ".e57" in file_ext_check_extension:
+                        
+                        t_hold = 0.09            
+
                     else:
+                        
                         t_hold = 3
     
                     # Since there will still be some long faces, we will mark them and remove them, this time applying a 0.06 thershold. This is
-                    ms.apply_filter('compute_selection_by_edge_length',                        threshold=t_hold)
+                    ms.apply_filter('compute_selection_by_edge_length',threshold=t_hold)
                     ms.apply_filter('meshing_remove_selected_faces')
                     # Then we remove any isolated faces (floaters) that might still be laying around
                     ms.apply_filter('meshing_remove_connected_component_by_diameter',
@@ -534,8 +615,8 @@ class meshing():
                     logging.info('Exporting Mesh.')
                     self.write_to_log(path, separator, message)
     
-                    newpath = simplified_output_folder + separator + designator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
-                    newpath_gen = gen_path_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
+                    newpath = simplified_output_folder + separator + designator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj').replace('.e57', '.obj')
+                    newpath_gen = gen_path_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj').replace('.e57', '.obj')
                     
                     ms.save_current_mesh(newpath,
                                          save_vertex_color=True,
@@ -551,7 +632,7 @@ class meshing():
                     if 'True' in raw_obj:
                         
                         try:
-                            shutil.rmtree("ARTAK_MM/DATA/PointClouds/" + folder_type + separator + pc_folder)
+                            shutil.rmtree("ARTAK_MM/DATA/Processing/" + folder_type + separator + pc_folder)
                             
                         except FileNotFoundError:
                             pass                        
@@ -599,12 +680,12 @@ class meshing():
                         ms.apply_filter('meshing_remove_connected_component_by_diameter',
                                         mincomponentdiag=p)
     
-                        if ".ply" or ".ex" in filename:
-                            #t_hold = 0.6
-                            t_hold = 0.36
+                        if ".ply" in file_ext_check_extension or ".ex" in file_ext_check_extension:
+
+                            t_hold = 0.25
     
-                        elif ".pts" in filename:
-                            t_hold = 0.095
+                        elif ".pts" in file_ext_check_extension or ".e57" in file_ext_check_extension:
+                            t_hold = 0.1
     
                         else:
                             t_hold = t_hold
@@ -620,8 +701,8 @@ class meshing():
     
                         message = 'INFO Exporting Mesh.'
                         
-                        newpath = simplified_output_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
-                        newpath_gen = gen_path_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
+                        newpath = simplified_output_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj').replace('.e57', '.obj')
+                        newpath_gen = gen_path_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj').replace('.e57', '.obj')
                         
                         ms.save_current_mesh(newpath,
                                              save_vertex_color=True,
@@ -673,7 +754,7 @@ class meshing():
                             ms.apply_filter('meshing_remove_connected_component_by_diameter',
                                             mincomponentdiag=p)
     
-                            t_hold = 0.9 #threshold will be the same for all if it gets this far
+                            t_hold = 0.5 #threshold will be the same for all if it gets this far
     
                             # Since there will still be some long faces, we will mark them and remove them, this time applying a 0.06 thershold. This is
                             ms.apply_filter('compute_selection_by_edge_length',
@@ -686,8 +767,8 @@ class meshing():
                             #message = 'INFO Exporting Mesh.'
                             #self.write_to_log(path, separator, message)
     
-                            newpath = simplified_output_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
-                            newpath_gen = gen_path_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
+                            newpath = simplified_output_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj').replace('.e57', '.obj')
+                            newpath_gen = gen_path_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj').replace('.e57', '.obj')
                             
                             ms.save_current_mesh(newpath,
                                                  save_vertex_color=True,
@@ -719,7 +800,7 @@ class meshing():
     
                             # Cleanup
                             try:
-                                shutil.rmtree("ARTAK_MM/DATA/PointClouds/" + folder_type + separator + pc_folder)
+                                shutil.rmtree("ARTAK_MM/DATA/Processing/" + folder_type + separator + pc_folder)
                                 os.unlink(dest_after_xcloud)
                                 
                             # Remove the status flag for MM_GUI progressbar
@@ -770,7 +851,7 @@ class meshing():
                 message = 'INFO End VC: ' + str(v_number) + '. End FC: ' + str(f_number) + ". Bypassing Decimation."
                 self.write_to_log(path, separator, message)                           
                 
-                newpath1 = simplified_output_folder + separator + 'decimated_' + designator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj')
+                newpath1 = simplified_output_folder + separator + 'decimated_' + designator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj').replace('.e57', '.obj')
 
                 ms.save_current_mesh(newpath1,
                                      save_vertex_color=True,
@@ -834,7 +915,7 @@ class meshing():
         message = 'INFO End VC: ' + str(v_number) + '. End FC: ' + str(f_number) + "."
         self.write_to_log(path, separator, message)
 
-        newpath1 = simplified_output_folder + separator + 'decimated_' + designator + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj')
+        newpath1 = simplified_output_folder + separator + 'decimated_' + designator + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj').replace('.e57', '.obj')
 
         ms.save_current_mesh(newpath1,
                              save_vertex_color=True,
@@ -891,7 +972,7 @@ class meshing():
             
         percentage = pymeshlab.PercentageValue(2)
 
-        newpath_texturized = with_texture_output_folder + separator + designator + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj').replace('decimated_', '')
+        newpath_texturized = with_texture_output_folder + separator + designator + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj').replace('decimated_', '').replace('.e57', '.obj')
 
         model_path = model_dest_folder + separator + designator + 'Model.obj'
 
@@ -939,7 +1020,7 @@ class meshing():
 
         # Let's compress
         
-        zip_file = with_texture_output_folder + separator + designator + filename.replace('.obj', '').replace('.ply','').replace('.pts', '').replace('.ex', '') + '.zip'        
+        zip_file = with_texture_output_folder + separator + designator + filename.replace('.obj', '').replace('.ply','').replace('.pts', '').replace('.ex', '').replace('.e57', '') + '.zip'        
         
         if 'v1' in resulting_mesh_type:
             
@@ -957,8 +1038,10 @@ class meshing():
         # Cleanup finish
 
         try:
-            shutil.rmtree("ARTAK_MM/DATA/PointClouds/" + folder_type + separator + pc_folder)
-            os.unlink(dest_after_xcloud)
+            os.system('@taskkill /im Obj2Tiles.exe /F >nul 2>&1')
+            shutil.rmtree("ARTAK_MM/DATA/Processing/" + folder_type + separator + pc_folder)
+            os.remove("coords.txt")
+            os.remove("exlogs.txt")
             
         except (FileNotFoundError, NameError):
             pass
@@ -983,19 +1066,19 @@ class meshing():
 
     def compress_into_zip(self, with_texture_output_folder, newpath, zip_file):
         
-        if 'v2' in resulting_mesh_type:
+        if resulting_mesh_type == "tm":
             
             logging.info('Generating Tiles.')   
             message = 'INFO Generating Tiles.'
             self.write_to_log(path, separator, message)                
             
-            target_to_tile = with_texture_output_folder + separator + designator + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj')
+            target_to_tile = with_texture_output_folder + separator + designator + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj').replace('.e57', '.obj')
             
             tiles_folder = target_to_tile.replace('.obj', '')+"_tiles"
             
             os.makedirs(tiles_folder, exist_ok = True)
             
-            cmd = "Obj2Tiles --lat "+str(lat)+" --lon "+str(lon)+" --alt "+str(elev)+" "+target_to_tile+" "+tiles_folder+" > "+log_folder + separator + "runtime.log"
+            cmd = "Obj2Tiles --lods 1 --divisions 1 --lat "+str(lat)+" --lon "+str(lon)+" --alt "+str(elev)+" "+target_to_tile+" "+tiles_folder+" --keeptextures > "+log_folder + "runtime.log"
             
             os.system(cmd) 
             
@@ -1003,15 +1086,17 @@ class meshing():
             message = 'INFO Done Generating Tiles.'
             self.write_to_log(path, separator, message)   
             
-            logging.info('Compressing to '+tiles_folder+separator+designator+filename.replace('.ply', '.zip').replace('.pts','.zip').replace('.ex','.zip').replace('.obj','.zip')+".")   
-            message = 'INFO Compressing to '+tiles_folder+separator+designator+filename.replace('.ply', '.zip').replace('.pts','.zip').replace('.ex','.zip').replace('.obj','.zip')+"."
+            logging.info('Compressing to '+tiles_folder+separator+designator+filename.replace('.ply', '.zip').replace('.pts','.zip').replace('.ex','.zip').replace('.obj','.zip').replace('.e57', '.zip')+".")   
+            message = 'INFO Compressing to '+tiles_folder+separator+designator+filename.replace('.ply', '.zip').replace('.pts','.zip').replace('.ex','.zip').replace('.obj','.zip').replace('.e57', '.zip')+"."
             self.write_to_log(path, separator, message)            
             
             shutil.make_archive(tiles_folder.replace('_tiles', ''), 'zip', tiles_folder)
             
+            print("shutil.make_archive("+tiles_folder.replace('_tiles', '')+',"zip",'+tiles_folder+")")
+
             return
         
-        if 'v1' in resulting_mesh_type:
+        if resulting_mesh_type == "m":
             
             extensions = ['.obj', '.obj.mtl', '.xyz', '.prj', '.png']        
 
@@ -1021,7 +1106,7 @@ class meshing():
                 for ext in extensions:
                     
                     try:
-                        zf.write(with_texture_output_folder + separator + designator + filename.replace('.obj', '').replace('.ply','').replace('.pts', '').replace('.ex', '') + ext, designator + filename.replace('.obj', '').replace('.ply', '').replace('.pts', '').replace('.ex', '') + ext,
+                        zf.write(with_texture_output_folder + separator + designator + filename.replace('.obj', '').replace('.ply','').replace('.pts', '').replace('.ex', '').replace('.e57', '') + ext, designator + filename.replace('.obj', '').replace('.ply', '').replace('.pts', '').replace('.ex', '').replace('.e57', '') + ext,
                                  compress_type = compression, compresslevel = 9)
                     except FileExistsError:
                         pass
@@ -1030,7 +1115,50 @@ class meshing():
                     
                 zf.write(with_texture_output_folder + separator + designator + 'texture.png', designator + 'texture.png', compress_type = compression, compresslevel = 9)
     
+            return    
+        
+    def open_obj_model(self, model_dest_folder):
+        
+        if 'tpc_' in model_dest_folder:
+            
+            model_name = 'tpc_Model.ply'
+            path = os.path.join(model_dest_folder, model_name)
+            
+            ply_point_cloud = o3d.data.PLYPointCloud()
+            pcd = o3d.io.read_point_cloud(path)
+            
+            # This is the preview step
+            o3d.visualization.draw_geometries([pcd],
+                                                window_name=str('ARTAK 3D Map Maker || LiDAR Edition'),
+                                                width=1280,
+                                                height=900,
+                                                zoom=0.32000000000000001,
+                                                front=[-0.34267508672450531, 0.89966482743414444, 0.27051244558475285],
+                                                lookat=[-15.934802105738544, -4.9954584521228949, 1.4543439424505489],
+                                                up=[0.095768108125702828, -0.25299355589613992, 0.96271632900925208])
             return
+        
+        else:
+            
+            if resulting_mesh_type == "m":
+        
+                model_name = os.path.join(model_dest_folder, "m_Model.obj")
+                albedo_name = os.path.join(model_dest_folder, "m_texture.png")
+                
+            else:
+                
+                model_name = os.path.join(model_dest_folder, "tm_Model.obj")
+                albedo_name = os.path.join(model_dest_folder, "tm_texture.png")
+                
+            model = o3d.io.read_triangle_mesh(model_name)
+            material = o3d.visualization.rendering.MaterialRecord()
+            material.shader = "defaultLit"        
+            
+            material.albedo_img = o3d.io.read_image(albedo_name)
+            
+            o3d.visualization.draw([{"name": "Model", "geometry": model, "material": material}], title = "ARTAK 3D Map Maker || LiDAR Edition", bg_color = [0,0,0,0], show_skybox = False, actions = None, width = 1280, height = 900)
+            
+            return    
 
     def write_to_log(self, path, separator, message):
 
@@ -1042,40 +1170,5 @@ class meshing():
         time.sleep(0.5)
         return
     
-    def open_obj_model(self, model_dest_folder):
-        
-        if 'b2a_' in model_dest_folder:
-            
-            model_name = 'b2a_Model.ply'
-            path = os.path.join(model_dest_folder + "/", model_name)
-            
-            ply_point_cloud = o3d.data.PLYPointCloud()
-            pcd = o3d.io.read_point_cloud(path)
-            
-            # This is the preview step
-            o3d.visualization.draw_geometries([pcd],
-                                                window_name=str('hello'),
-                                                width=1280,
-                                                height=900,
-                                                zoom=0.32000000000000001,
-                                                front=[-0.34267508672450531, 0.89966482743414444, 0.27051244558475285],
-                                                lookat=[-15.934802105738544, -4.9954584521228949, 1.4543439424505489],
-                                                up=[0.095768108125702828, -0.25299355589613992, 0.96271632900925208])
-            return
-        
-        else:
-        
-            model_name = model_dest_folder + separator + designator + "Model.obj"
-            model = o3d.io.read_triangle_mesh(model_name)
-            material = o3d.visualization.rendering.MaterialRecord()
-            material.shader = "defaultLit"        
-            
-            albedo_name = model_dest_folder + separator + designator + "texture.png"
-            material.albedo_img = o3d.io.read_image(albedo_name)
-            
-            o3d.visualization.draw([{"name": "Model", "geometry": model, "material": material}], title = "ARTAK 3D Map Maker || LiDAR Edition", bg_color = [0,0,0,0], show_skybox = False, actions = None, width = 1280, height = 900)
-            
-            return
-    
 if __name__ == '__main__':
-    meshing().get_PointCloud()
+    pc2mesh().get_file()
