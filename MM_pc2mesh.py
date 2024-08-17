@@ -322,7 +322,7 @@ class pc2mesh():
             
         if resulting_mesh_type == "m":
             
-            mesh_depth = 13
+            mesh_depth = 12
             face_number = 500000
             designator = 'm_'
             folder_type = 'b1'
@@ -331,7 +331,7 @@ class pc2mesh():
             
         elif resulting_mesh_type == "tm":
             
-            mesh_depth = 13
+            mesh_depth = 12
             face_number = 4500000
             designator = 'tm_'
             folder_type = 'b2'
@@ -346,7 +346,7 @@ class pc2mesh():
 
         else:
             
-            mesh_depth = 13
+            mesh_depth = 12
             face_number = 500000
             designator = 'm_'
             folder_type = 'b1'
@@ -533,7 +533,7 @@ class pc2mesh():
         
         if mesh_file_size > 20000000000:
             
-            mesh_depth = 12
+            mesh_depth = 11
             origin = 'pc'
             message = 'WARNING Mesh is not memory friedly. Retrying with safer parameters.'
             logging.warning('Mesh is not memory friedly. Retrying with safer parameters.')

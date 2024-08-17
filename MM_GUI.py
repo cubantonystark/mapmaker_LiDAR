@@ -105,7 +105,7 @@ class App(customtkinter.CTk):
         super().__init__()
         self.once = once
         self.iconbitmap(default='gui_images/ARTAK_103.ico')
-        self.title("ARTAK 3D Map Maker || LiDAR || v1.0.6rc1")
+        self.title("ARTAK 3D Map Maker || LiDAR || v1.0.7rc2")
         self.geometry("1650x465")
         self.protocol('WM_DELETE_WINDOW', self.terminate_all)
         self.resizable(False, False)
@@ -551,6 +551,12 @@ class App(customtkinter.CTk):
         
     def display_remote_dir_listing(self):
         
+        def close_remote_window():
+            
+            remote_window.destroy()
+    
+            self.browse_button_pc.configure(state='normal')         
+       
         def download_threaded(selected_option):
             
             remote_window.forget(remote_window)
@@ -611,8 +617,8 @@ class App(customtkinter.CTk):
                     
                     runtime.write(str(fullpath))
         
-                subprocess.Popen(["python", "MM_pc2mesh.py"])                
-                
+                subprocess.Popen(["python", "MM_pc2mesh.py"])  
+
         def download_exlog(event):
             
             self.listbox.bindtags((self.listbox, remote_window, "all"))
@@ -640,6 +646,8 @@ class App(customtkinter.CTk):
         remote_window.geometry("470x450")
         remote_window.configure(bg="gray25")
         remote_window.resizable(False, False)
+        remote_window.protocol('WM_DELETE_WINDOW', close_remote_window)
+    
         scrollbar = tk.Scrollbar(remote_window)
         scrollbar.grid(row=0, column=1, sticky='nsw') 
 
