@@ -1,0 +1,3 @@
+[submodule "3d_tiles_renderer"]
+	path = 3d_tiles_renderer
+	url = https://github.com/cubantonystark/3d_tiles_renderer.git
