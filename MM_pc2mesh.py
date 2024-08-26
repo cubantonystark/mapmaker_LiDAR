@@ -283,7 +283,12 @@ class pc2mesh():
         
         image_path = scan_log_image_folder+"/"+exlog_file_name
         
+        sources_folder = image_path + "/original/"
+        
         dest = image_path + "/images/"
+        
+        if not os.path.exists(sources_folder):
+            os.mkdir(sources_folder)        
         
         if not os.path.exists(dest):
             os.mkdir(dest)
@@ -329,8 +334,13 @@ class pc2mesh():
             section_3 = dest+"/"+filename.replace("_s3.png", "_s3")+extension
             cv2.imwrite(section_3, s3)
             
-            os.unlink(result)        
-        
+            filenames = [f for f in glob.glob(image_path + "/*.png")]
+            
+            os.unlink(result)
+            
+        for file in filenames:
+            
+            shutil.move(file, sources_folder)
         
         cmd = 'wsl --user mapmaker -e bash -c "sudo rm -rf /home/mapmaker/exyn/exlogs/* && exit; exec bash"'
         os.system(cmd)
