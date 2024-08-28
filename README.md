@@ -29,4 +29,7 @@ wsl --install -d Ubuntu-22.04
 
 `mapmaker ALL=(ALL:ALL) NOPASSWD:ALL`
 
-directly bellow `%sudo   ALL=(ALL:ALL) ALL`, on the section that reads `# Allow members of group sudo to execute any command`
+directly bellow `%sudo   ALL=(ALL:ALL) ALL`, on the section that reads `# Allow members of group sudo to execute any command`, press CTRL+O and CTRL+X to save your changes to the 
+sudoers list and exit editing mode.
+
+
