@@ -52,8 +52,6 @@ sudo usermod -aG docker $USER
 
 #### Step 8: Now we need to install docker on the ubuntu side. Type:
 
-#### Step 9: Now close the WSL 2 window and open a Windows command prompt. Type:
-
 ```sh
 wsl --set-default Ubuntu-22.04
 ```
@@ -63,6 +61,8 @@ followed by:
 ```sh
 wsl --shutdown
 ```
+
+#### Step 9: Now close the WSL 2 window and open a Windows command prompt. Type:
 
 #### Step 10: Reopen a wsl 2 sesion by typing: ```sh wsl `` and once in the Ubuntgu prompt, type: ```sh docker --version ```. Docker should reply with a version number. At this time, you may close all windows. Ubuntu 22-04 is now the default version running in WSL 2 and docker is up and running as well.
 
