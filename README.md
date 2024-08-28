@@ -28,3 +28,5 @@ wsl --install -d Ubuntu-22.04
 #### Step 5: We will add user mapmaker to the sudoers list (to allow for priviledge escalation and override the password requests. Type the following:
 
 `mapmaker ALL=(ALL:ALL) NOPASSWD:ALL`
+
+directly bellow `%sudo   ALL=(ALL:ALL) ALL`, on the section that reads `# Allow members of group sudo to execute any command`
