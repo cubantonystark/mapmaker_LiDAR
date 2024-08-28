@@ -4,11 +4,11 @@
 
 ## Install using Command Prompt
 
-#### Step 1: Start CMD with administrative privileges.
+#### Step 1: Start a command prompt with administrative privileges.
 
 #### Step 2: Run "wsl -l -o" to list other Linux releases.
 
-#### Step 3: You can install your favorite Linux distribution, use "wsl --install -d NameofLinuxDistro." (In this case we are using Ubuntu-22.04
+#### Step 3: Type ```sh wsl --install -d NameofLinuxDistro ``` (In this case we are using Ubuntu-22.04
 
 ```sh
 wsl -l -o
@@ -52,7 +52,7 @@ sudo usermod -aG docker $USER
 
 #### Step 7: Now we need to install docker on the ubuntu side. Type:
 
-#### Step 4: Now close the WSL 2 window and open a Windows command prompt. Type:
+#### Step 8: Now close the WSL 2 window and open a Windows command prompt. Type:
 
 ```sh
 wsl --set-default Ubuntu-22.04
@@ -60,3 +60,6 @@ wsl --set-default Ubuntu-22.04
 wsl --shutdown
 
 ```
+
+#### Step 9: Reopen a wsl 2 sesion by typing: ```sh wsl `` and once in the Ubuntgu prompt, type: ```sh docker --version ```. Docker should reply with a version number. At this time, you may close all windows. Ubuntu 22-04 is the default version running in WSL 2 and docker is up and running as well.
+
