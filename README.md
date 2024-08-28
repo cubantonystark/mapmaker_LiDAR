@@ -4,7 +4,7 @@
 
 ## Installation steps for Windows Subsystem for Linux 2 (WSL 2) and docker
 
-#### Step 1: ### Start a command prompt with administrative privileges.
+#### Step 1: Start a command prompt with administrative privileges.
 
 #### Step 2: Run "wsl -l -o" to list other Linux releases.
 
