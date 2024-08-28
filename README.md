@@ -68,6 +68,6 @@ wsl --shutdown
 
 #### Step 11: Install Docker for Windows and Settings/General, enable `Use the WSL 2 base engine``
 
-Also, under Settings/Resources, ensure `Enable inmtegration with my default WSL distro` is enable, as well that ```Ubuntu-2204``` is enabled under  ```Enable integration with additional distros``
+Also, under Settings/Resources, ensure `Enable inmtegration with my default WSL distro` is enable, as well that ```Ubuntu-2204``` is enabled under  ```Enable integration with additional distros```
 
 
