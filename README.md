@@ -1,2 +1,2 @@
-# Mapmaker_LiDAR
+# Mapmaker LiDAR
 mapmaker_LiDAR
