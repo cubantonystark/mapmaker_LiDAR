@@ -1,2 +1,2 @@
-<center>#mapmaker_LiDAR</center>
+<p align = "center"># mapmaker_LiDAR
 mapmaker_LiDAR
