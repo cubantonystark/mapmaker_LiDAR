@@ -2,7 +2,7 @@
 
 ### An automated worflow for Surface Reconstruction
 
-## Install using Command Prompt
+## Installation steps for Windows Subsystem for Linux 2 (WSL 2) and docker
 
 #### Step 1: Start a command prompt with administrative privileges.
 
