@@ -27,9 +27,13 @@ wsl --install -d Ubuntu-22.04
 
 #### Step 6: We will add user mapmaker to the sudoers list (to allow for priviledge escalation and override the password requests. Type the following directive
 
-`mapmaker ALL=(ALL:ALL) NOPASSWD:ALL`
+```sh
 
-directly bellow `%sudo   ALL=(ALL:ALL) ALL`, on the section that reads `# Allow members of group sudo to execute any command`, press CTRL+O and CTRL+X to save your changes to the 
+mapmaker ALL=(ALL:ALL) NOPASSWD:ALL
+
+```
+
+directly below `%sudo   ALL=(ALL:ALL) ALL`, on the section that reads `# Allow members of group sudo to execute any command`, press CTRL+O and CTRL+X to save your changes to the 
 sudoers list and exit editing mode. The changes are registered immediately and you shoudl not need to type a password any time you invoque a command with sudo form now on
 
 #### Step 7: Now we need to install docker on the ubuntu side. Type 
