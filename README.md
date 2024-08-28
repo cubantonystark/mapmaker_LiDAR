@@ -72,7 +72,8 @@ wsl
 and once in the Ubuntgu prompt, type: 
 ```sh 
 docker --version
-```. Docker should reply with a version number. At this time, you may close all windows. Ubuntu 22-04 is now the default version running in WSL 2 and docker is up and running as well.
+```
+Docker should reply with a version number. At this time, you may close all windows. Ubuntu 22-04 is now the default version running in WSL 2 and docker is up and running as well.
 
 #### Step 11: Install Docker for Windows and in Settings/General, enable ```Use the WSL 2 base engine```
 
