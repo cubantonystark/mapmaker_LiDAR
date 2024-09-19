@@ -20,6 +20,10 @@ from tkinter import filedialog, messagebox
 import numpy as np
 from defisheye import Defisheye
 
+from tqdm import tqdm
+
+sys.setrecursionlimit(1999999999)
+
 PIL.Image.MAX_IMAGE_PIXELS = None
 
 level = logging.INFO
@@ -36,7 +40,7 @@ class pc2mesh():
         
         message = 'INFO Converting PointCloud. File: ' + str(fullpath)
         logging.info('Converting PointCloud. File: ' + str(fullpath))
-        self.write_to_log(path, separator, message)                
+        self.write_to_log(separator, message)                
         
         pcd = o3d.io.read_point_cloud(fullpath)
 
@@ -51,7 +55,7 @@ class pc2mesh():
         
         message = 'INFO Converting PointCloud. File: ' + str(fullpath)
         logging.info('Converting PointCloud. File: ' + str(fullpath))
-        self.write_to_log(path, separator, message)                
+        self.write_to_log(separator, message)                
         
         ms = pymeshlab.MeshSet()
         ms.load_new_mesh(fullpath)
@@ -83,7 +87,7 @@ class pc2mesh():
             
         message = 'INFO Loading PointCloud. File: ' + str(fullpath)
         logging.info('Loading PointCloud. File: ' + str(fullpath))
-        self.write_to_log(path, separator, message)        
+        self.write_to_log(separator, message)        
         
         temp_folder = filename.replace('.ply', '').replace('.pts', '')
         
@@ -96,7 +100,7 @@ class pc2mesh():
         
         logging.info('Creating Tiles.')    
         message = 'INFO Creating Tiles.'
-        self.write_to_log(path, separator, message)          
+        self.write_to_log(separator, message)          
         
         try:
             
@@ -108,11 +112,11 @@ class pc2mesh():
             
             message = 'ERROR This PointCloud cannot be tiled. Aborting.'
             logging.error('This PointCloud cannot be tiled. Aborting.')
-            self.write_to_log(path, separator, message)            
+            self.write_to_log(separator, message)            
         
         logging.info('Compressing.')    
         message = 'INFO Compressing.'
-        self.write_to_log(path, separator, message)
+        self.write_to_log(separator, message)
         
         shutil.make_archive(post_dest_folder + separator + designator + temp_folder, 'zip', outfolder)
         
@@ -161,7 +165,7 @@ class pc2mesh():
             
         message = 'INFO Processing Complete.\n'
         logging.info('Processing Complete.')
-        self.write_to_log(path, separator, message)
+        self.write_to_log(separator, message)
         messagebox.showinfo('ARTAK 3D Map Maker', 'Tiling Process Complete.')
         
         current_system_pid = os.getpid()
@@ -193,11 +197,11 @@ class pc2mesh():
         
         logging.info('Extracting PointCloud.')    
         message = 'INFO Extracting PointCloud.'
-        self.write_to_log(path, separator, message)         
+        self.write_to_log(separator, message)
 
         shutil.copy(exlog_path, dest)
 
-        cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE='+exlog_filename_converted+' && /snap/bin/docker load < /home/mapmaker/exyn/excloud/exynai-runtime-bionic_23.10.0_base.tar && /snap/bin/docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-bionic:23.10.0_base excloud -i /home/exlogs/$LOGFILE --colors --keep_uncolorized --d-cloud_remove_nonstatic_params-trajectory_params-max_dataset_duration 3600 -w /home/exlogs | tee /home/mapmaker/exyn/runtime.log && exit; exec bash"'
+        cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE='+exlog_filename_converted+' && docker load < /home/mapmaker/exyn/excloud/exynai-runtime-jammy_24.03.0_base.tar && docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-jammy:24.03.0_base excloud -i /home/exlogs/$LOGFILE --colors --keep_uncolorized --d-cloud_remove_nonstatic_params-trajectory_params-max_dataset_duration 3600 -w /home/exlogs | tee /home/mapmaker/exyn/runtime.log && exit; exec bash"'
         os.system(cmd)
 
         with open("\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\runtime.log", "r") as log_file:
@@ -208,14 +212,14 @@ class pc2mesh():
                 
                 logging.info('Exlog '+exlog_filename_converted+' is not indexed. Attempting reindexing.')   
                 message = 'INFO Exlog '+exlog_filename_converted+' is not indexed. Attempting reindexing.'
-                self.write_to_log(path, separator, message)
+                self.write_to_log(separator, message)
                 
-                cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE='+exlog_filename_converted+' && /snap/bin/docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-bionic:23.10.0_base exlog --reindex /home/exlogs/$LOGFILE --force | tee /home/mapmaker/exyn/runtime.log && exit; exec bash"'
+                cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE='+exlog_filename_converted+' && docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-jammy:24.03.0_base exlog --reindex /home/exlogs/$LOGFILE --force | tee /home/mapmaker/exyn/runtime.log && exit; exec bash"'
                 os.system(cmd)
                 
                 exlog_filename_reindexed = exlog_file_name+'.reindex'+exlog_file_extension
                 
-                cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE='+exlog_filename_reindexed+' && /snap/bin/docker load < /home/mapmaker/exyn/excloud/exynai-runtime-bionic_23.10.0_base.tar && /snap/bin/docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-bionic:23.10.0_base excloud -i /home/exlogs/$LOGFILE --colors --keep_uncolorized --d-cloud_remove_nonstatic_params-trajectory_params-max_dataset_duration 3600 -w /home/exlogs | tee /home/mapmaker/exyn/runtime.log && exit; exec bash"'
+                cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE='+exlog_filename_reindexed+' && docker load < /home/mapmaker/exyn/excloud/exynai-runtime-jammy_24.03.0_base.tar && docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-jammy:24.03.0_base excloud -i /home/exlogs/$LOGFILE --colors --keep_uncolorized --d-cloud_remove_nonstatic_params-trajectory_params-max_dataset_duration 3600 -w /home/exlogs | tee /home/mapmaker/exyn/runtime.log && exit; exec bash"'
                 os.system(cmd)   
                 
                 with open("\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\runtime.log", "r") as log_file:
@@ -266,9 +270,15 @@ class pc2mesh():
         
         logging.info('Extracting Images.')    
         message = 'INFO Extracting Images.'
+
+        self.write_to_log(separator, message)
+        
+        cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE=/home/exlogs/'+exlog_filename_converted+' && docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-jammy:24.03.0_base excamera -i $LOGFILE --raw -o /home/exlogs"'
+
         self.write_to_log(path, separator, message)
         
         cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE=/home/exlogs/'+exlog_filename_converted+' && /snap/bin/docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-bionic:23.10.0_base excamera -i $LOGFILE --cub --compact -o /home/exlogs"'
+
         os.system(cmd)
         
         png_files = [f for f in glob.glob( "\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\exlogs\\*.png")]
@@ -283,6 +293,10 @@ class pc2mesh():
         
         image_path = scan_log_image_folder+"/"+exlog_file_name
         
+
+        dest = image_path + "/images/"
+        
+
         sources_folder = image_path + "/original/"
         
         dest = image_path + "/images/"
@@ -290,11 +304,79 @@ class pc2mesh():
         if not os.path.exists(sources_folder):
             os.mkdir(sources_folder)        
         
+
         if not os.path.exists(dest):
             os.mkdir(dest)
         
         filenames = [f for f in glob.glob(image_path + "/*.png")]
         
+
+        for file in tqdm((filenames), desc = "Splitting Cameras"):
+    
+            # Read the image
+            img = cv2.imread(file)
+            height = img.shape[0]
+            width = img.shape[1]
+            
+            # Cut the image in half
+            width_cutoff = width // 2
+            s1 = img[:, :width_cutoff]
+            s2 = img[:, width_cutoff:]
+            
+            path, filename = os.path.split(file)
+            
+            file_name, extension = os.path.splitext(filename)
+            
+            cv2.imwrite(dest+"/"+filename.replace("_raw.png", "")+"_left"+extension, s1)
+            cv2.imwrite(dest+"/"+filename.replace("_raw.png", "")+"_right"+extension, s2)    
+
+        filenames = [f for f in glob.glob(dest + "/*.png")]
+
+        fov = 180
+        pfov = 120
+        xcenter = -1
+        ycenter = -1
+        radius = -1
+        angle = -1
+        dtype = 'linear'
+        format = 'circular' 
+        
+        for file in tqdm((filenames), desc = "Undistorting"):
+            
+                path, filename = os.path.split(file)
+                img_in = file
+        
+                obj = Defisheye(img_in, dtype=dtype, format=format, fov=fov, pfov=pfov)
+                
+                img_out = dest+"/"+filename
+                
+                # To save image locally 
+                obj.convert(outfile = img_out)
+        
+        fov = 180
+        pfov = 90
+        xcenter = -1
+        ycenter = -1
+        radius = -1
+        angle = -1
+        dtype = 'linear'
+        format = 'fullframe' 
+        
+        filenames = [f for f in glob.glob(dest + "/*.png")]
+        
+        for file in tqdm((filenames), desc = "Refining"):
+            
+                path, filename = os.path.split(file)
+                img_in = file
+        
+                obj = Defisheye(img_in, dtype=dtype, format=format, fov=fov, pfov=pfov)
+        
+                img_out = dest+"/"+filename
+                    
+                # To save image locally 
+                obj.convert(outfile = img_out)
+
+
         for file in filenames:
             
             # Read the image
@@ -342,6 +424,7 @@ class pc2mesh():
             
             shutil.move(file, sources_folder)
         
+
         cmd = 'wsl --user mapmaker -e bash -c "sudo rm -rf /home/mapmaker/exyn/exlogs/* && exit; exec bash"'
         os.system(cmd)
 
@@ -349,7 +432,7 @@ class pc2mesh():
     
         logging.info('PointCloud Extracted.')   
         message = 'INFO PointCloud Extracted.'
-        self.write_to_log(path, separator, message)
+        self.write_to_log(separator, message)
         
         if 'tpc_' in designator:
             
@@ -409,7 +492,7 @@ class pc2mesh():
             designator = 'm_'
             folder_type = 'b1'
             folder_suffix = '_m'
-            texture_size = 8192 
+            texture_size = 4096 
             
         elif resulting_mesh_type == "tm":
             
@@ -433,14 +516,14 @@ class pc2mesh():
             designator = 'm_'
             folder_type = 'b1'
             folder_suffix = '_m'
-            texture_size = 8192  
+            texture_size = 4096  
         
         today = date.today()
         now = datetime.now()
         d = today.strftime("%d%m%Y")
         ct = now.strftime("%H%M%S")   
 
-        if platform.system == 'Windows':
+        if platform.system() == 'Windows':
             separator = '\\'
             
         else:
@@ -461,6 +544,9 @@ class pc2mesh():
         path = path.replace("<_io.TextIOWrapper name='", '')
         filename = filename.replace("' mode='r' encoding='cp1252'>", '')
         
+        file_name_1, file_ext_1 = os.path.splitext(filename)
+        
+        if "." in file_name_1:
         filename1 = os.path.join(path, filename)
         
         exlog_name_for_images = filename
@@ -475,10 +561,23 @@ class pc2mesh():
         
         if not os.path.exists(filename1):
             
-            os.rename(filename1, fullpath)
-
+            file_name_1 = file_name_1.replace(".", "_")
+            
+            fullpath_to_change = path + separator + file_name_1+file_ext_1
+            
+            os.rename(path+separator+filename, fullpath_to_change)
+            
+            fullpath = fullpath_to_change
+            
+        else:
+            
+            fullpath = path + separator + filename
+        
         if 'None' in fullpath:
             sys.exit()
+
+        if '.e57' in fullpath:
+            fullpath, mesh_depth = self.load_e57(fullpath)
             
         path, filename = os.path.split(fullpath)
         
@@ -509,7 +608,7 @@ class pc2mesh():
             os.makedirs(post_dest_folder, mode=777)
         if not os.path.exists(model_dest_folder):
             os.makedirs(model_dest_folder, mode=777)
-                
+
         if '.e57' in fullpath:
             
             fullpath = self.load_e57(fullpath)     
@@ -519,7 +618,7 @@ class pc2mesh():
             fullpath = self.load_pts(fullpath)         
             
         if '.ex' in fullpath:
-            
+
             fullpath = self.process_exlog(fullpath)       
             
         if 'tpc_' in designator:
@@ -544,7 +643,7 @@ class pc2mesh():
             message = 'INFO Loading OBJ. File: '+str(fullpath)
             logging.info('Loading OBJ. File: '+str(fullpath))
             file_origin = fullpath
-            self.write_to_log(path, separator, message)
+            self.write_to_log(separator, message)
             shutil.copy(fullpath, simplified_output_folder)
             shutil.rmtree(mesh_output_folder)
             generated_mesh = fullpath
@@ -554,15 +653,15 @@ class pc2mesh():
             
             message = 'INFO Standalone Mesh requested.'
             logging.info('Standalone Mesh requested.')
-            self.write_to_log(path, separator, message)     
+            self.write_to_log(separator, message)     
         
         message = 'INFO Loading PointCloud. File: ' + str(fullpath)
         logging.info('Loading PointCloud. File: ' + str(fullpath))
-        self.write_to_log(path, separator, message)
+        self.write_to_log(separator, message)
         file_ext_check = fullpath
         #message = 'INFO Processing to depth: ' + str(mesh_depth)
         #logging.info('Processing to depth: ' + str(mesh_depth))
-        #self.write_to_log(path, separator, message) 
+        #self.write_to_log(separator, message) 
         
         pcd = o3d.io.read_point_cloud(fullpath)
         
@@ -572,10 +671,10 @@ class pc2mesh():
         # We need to downsample the PointCloud to make it less dense and easier to work with
         message = "INFO "+str(pcd)
         logging.info(str(pcd))
-        self.write_to_log(path, separator, message)        
+        self.write_to_log(separator, message)        
         message = "INFO Downsampling."
         logging.info("Downsampling.")
-        self.write_to_log(path, separator, message)
+        self.write_to_log(separator, message)
         
         vox_size = 0.02
             
@@ -583,19 +682,19 @@ class pc2mesh():
 
         logging.info(str(downpcd)+"\r")
         message = "INFO "+str(downpcd)
-        self.write_to_log(path, separator, message)
+        self.write_to_log(separator, message)
         self.compute_normals_and_generate_mesh(downpcd, mesh_depth, texture_size)  
     def compute_normals_and_generate_mesh(self, downpcd, mesh_depth, texture_size):
 
         # Since some PointClouds don't include normals information (needed for texture and color extraction) we will have to calculate it.
         message = 'INFO Computing Normals.'
         logging.info('Computing Normals.')
-        self.write_to_log(path, separator, message)
+        self.write_to_log(separator, message)
         downpcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
 
         logging.info('Generating Mesh.')
         message = 'INFO Generating Mesh.'
-        self.write_to_log(path, separator, message)
+        self.write_to_log(separator, message)
 
         mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(downpcd, depth=mesh_depth, width=0, scale=1.1,
                                                                          linear_fit=False)[0]
@@ -603,7 +702,7 @@ class pc2mesh():
 
         message = 'INFO Exporting Mesh.'
         logging.info('Exporting Mesh.')
-        self.write_to_log(path, separator, message)
+        self.write_to_log(separator, message)
         
         o3d.io.write_triangle_mesh(generated_mesh,
                                    mesh,
@@ -622,7 +721,7 @@ class pc2mesh():
             origin = 'pc'
             message = 'WARNING Mesh is not memory friedly. Retrying with safer parameters.'
             logging.warning('Mesh is not memory friedly. Retrying with safer parameters.')
-            self.write_to_log(path, separator, message)
+            self.write_to_log(separator, message)
             self.compute_normals_and_generate_mesh(downpcd, mesh_depth, texture_size)
 
         else:
@@ -637,7 +736,7 @@ class pc2mesh():
             ms = pymeshlab.MeshSet()
             message = 'INFO Analyzing.'
             logging.info('Analyzing.')
-            self.write_to_log(path, separator, message)
+            self.write_to_log(separator, message)
             ms.load_new_mesh(generated_mesh)
             
             if 'obj' in origin:
@@ -645,7 +744,7 @@ class pc2mesh():
                 newpath = generated_mesh
                 message = 'INFO Bypassing Mesh Refinement.'
                 logging.info('Bypassing Mesh Refinement.')
-                self.write_to_log(path, separator, message)                
+                self.write_to_log(separator, message)                
                 
                 pass
             
@@ -666,7 +765,7 @@ class pc2mesh():
                     p = pymeshlab.PercentageValue(2)
                     message = 'INFO Refining.'
                     logging.info('Refining.')
-                    self.write_to_log(path, separator, message)
+                    self.write_to_log(separator, message)
                     # We will select faces that are long based on the bounding box calculation and then remove them
                     ms.apply_filter('compute_selection_by_edge_length',
                                     threshold=t_hold)
@@ -681,10 +780,11 @@ class pc2mesh():
                     if ".ply" in file_ext_check_extension or ".ex" in file_ext_check_extension:
                         
                         t_hold = 0.12
+                        print("T_hold: 0.12")
 
                     elif ".pts" in file_ext_check_extension or ".e57" in file_ext_check_extension:
                         
-                        t_hold = 0.09            
+                        t_hold = 0.09    
 
                     else:
                         
@@ -698,7 +798,7 @@ class pc2mesh():
                                     mincomponentdiag=p)
                     message = 'INFO Exporting Mesh.'
                     logging.info('Exporting Mesh.')
-                    self.write_to_log(path, separator, message)
+                    self.write_to_log(separator, message)
     
                     newpath = simplified_output_folder + separator + designator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj').replace('.e57', '.obj')
                     newpath_gen = gen_path_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj').replace('.e57', '.obj')
@@ -729,7 +829,7 @@ class pc2mesh():
                         
                         message = 'INFO Standalone Mesh Creation Complete.\n'
                         logging.info('Raw Standalone Mesh Creation Complete.')
-                        self.write_to_log(path, separator, message)
+                        self.write_to_log(separator, message)
                         messagebox.showinfo('ARTAK 3D Map Maker', 'Standalone Mesh Creation Complete.')
                         
                         current_system_pid = os.getpid()
@@ -744,7 +844,7 @@ class pc2mesh():
                         ms.load_new_mesh(generated_mesh)
                         logging.warning('Mesh not optimal. Retargeting parameters (1).\r')
                         message = 'WARNING Mesh not optimal. Retargeting parameters (1).'
-                        self.write_to_log(path, separator, message)
+                        self.write_to_log(separator, message)
     
                         boundingbox = ms.current_mesh().bounding_box()
                         diag = boundingbox.diagonal()
@@ -754,7 +854,7 @@ class pc2mesh():
     
                         logging.info('Refining.')
                         message = 'INFO Refining.'
-                        self.write_to_log(path, separator, message)
+                        self.write_to_log(separator, message)
     
                         # We will select faces that are long based on the bounding box calculation and then remove them
                         ms.apply_filter('compute_selection_by_edge_length',
@@ -768,6 +868,7 @@ class pc2mesh():
                         if ".ply" in file_ext_check_extension or ".ex" in file_ext_check_extension:
 
                             t_hold = 0.25
+                            print("T_hold: 0.25")
     
                         elif ".pts" in file_ext_check_extension or ".e57" in file_ext_check_extension:
                             t_hold = 0.1
@@ -807,7 +908,7 @@ class pc2mesh():
                         
                             message = 'INFO Standalone Mesh Creation Complete.\n'
                             logging.info('Raw Standalone Mesh Creation Complete.')
-                            self.write_to_log(path, separator, message)
+                            self.write_to_log(separator, message)
                             messagebox.showinfo('ARTAK 3D Map Maker', 'Raw Standalone Mesh Creation Complete.')
                             
                             current_system_pid = os.getpid()
@@ -822,14 +923,14 @@ class pc2mesh():
                             ms.load_new_mesh(generated_mesh)
                             logging.warning('Mesh not optimal. Retargeting parameters (2).\r')
                             message = 'WARNING Mesh not optimal. Retargeting parameters (2).'
-                            self.write_to_log(path, separator, message)
+                            self.write_to_log(separator, message)
                             boundingbox = ms.current_mesh().bounding_box()
                             diag = boundingbox.diagonal()
                             t_hold = diag / 200
                             p = pymeshlab.PercentageValue(2)
                             logging.info('Refining.')
                             message = 'INFO Refining'
-                            self.write_to_log(path, separator, message)
+                            self.write_to_log(separator, message)
                             # We will select faces that are long based on the bounding box calculation and then remove them
                             ms.apply_filter('compute_selection_by_edge_length',
                                             threshold=t_hold)
@@ -839,18 +940,18 @@ class pc2mesh():
                             ms.apply_filter('meshing_remove_connected_component_by_diameter',
                                             mincomponentdiag=p)
     
-                            t_hold = 0.5 #threshold will be the same for all if it gets this far
-    
                             # Since there will still be some long faces, we will mark them and remove them, this time applying a 0.06 thershold. This is
+                            #threshold will be the same for all if it gets this far
                             ms.apply_filter('compute_selection_by_edge_length',
                                             threshold=t_hold)
+                            print("T_hold: "+str(t_hold))
                             ms.apply_filter('meshing_remove_selected_faces')
                             # Then we remove any isolated faces (floaters) that might still be laying around
                             ms.apply_filter('meshing_remove_connected_component_by_diameter',
                                             mincomponentdiag=p)
                             #logging.info("Exporting Mesh.")
                             #message = 'INFO Exporting Mesh.'
-                            #self.write_to_log(path, separator, message)
+                            #self.write_to_log(separator, message)
     
                             newpath = simplified_output_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj').replace('.e57', '.obj')
                             newpath_gen = gen_path_folder + separator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj').replace('.e57', '.obj')
@@ -873,7 +974,7 @@ class pc2mesh():
                             
                                 message = 'INFO Standalone Mesh Creation Complete.\n'
                                 logging.info('Raw Standalone Mesh Creation Complete.')
-                                self.write_to_log(path, separator, message)
+                                self.write_to_log(separator, message)
                                 messagebox.showinfo('ARTAK 3D Map Maker', 'Raw Standalone Mesh Creation Complete.')
                                 
                                 current_system_pid = os.getpid()
@@ -898,11 +999,11 @@ class pc2mesh():
  
                             message = 'ERROR Could not compute Mesh from PointCloud. Aborting.'
                             logging.error('Could not compute Mesh from PointCloud. Aborting.')
-                            self.write_to_log(path, separator, message)
+                            self.write_to_log(separator, message)
                             
                             message = 'ERROR Process terminated.'
                             logging.error('Process terminated.')
-                            self.write_to_log(path, separator, message)
+                            self.write_to_log(separator, message)
       
                             # Announce error and terminate.
                             messagebox.showerror('ARTAK 3D Map Maker', 'Could not compute Mesh from PointCloud. Aborting.')
@@ -917,10 +1018,10 @@ class pc2mesh():
             f_number = m.face_number()
             logging.info("Overall Target FC: "+str(face_number)+".\r")
             message = "INFO Overall Target FC: "+str(face_number)+"."
-            self.write_to_log(path, separator, message)
+            self.write_to_log(separator, message)
             logging.info("Initial VC: "+str(v_number)+". Initial FC: "+str(f_number)+".\r")
             message = 'INFO Initial VC: ' + str(v_number) + '. Initial FC: ' + str(f_number) + "."
-            self.write_to_log(path, separator, message)
+            self.write_to_log(separator, message)
 
             # Let's take a look at the mesh file to see how big it is. We are constrained to about 120Mb in this case, therefore we
             # will have to decimate if the file is bigger than that number.
@@ -934,7 +1035,7 @@ class pc2mesh():
                 
                 logging.info("End VC: "+str(v_number)+". End FC: "+str(f_number)+". Bypassing Decimation.\r")
                 message = 'INFO End VC: ' + str(v_number) + '. End FC: ' + str(f_number) + ". Bypassing Decimation."
-                self.write_to_log(path, separator, message)                           
+                self.write_to_log(separator, message)                           
                 
                 newpath1 = simplified_output_folder + separator + 'decimated_' + designator + filename.replace('.ply', '.obj').replace('.pts', '.obj').replace('.ex', '.obj').replace('.e57', '.obj')
 
@@ -956,7 +1057,7 @@ class pc2mesh():
                 
             logging.error('Not enough Memory to run the process. Quitting.\r')
             message = 'ERROR Not enough Memory to run the process. Quitting.'
-            self.write_to_log(path, separator, message)
+            self.write_to_log(separator, message)
             current_system_pid = os.getpid()
             ThisSystem = psutil.Process(current_system_pid)
             ThisSystem.terminate()
@@ -977,7 +1078,7 @@ class pc2mesh():
             target_faces = int(f_number / 1.5)
             logging.info("Target: "+str(int(target_faces))+" F. Iter. "+str(c)+".\r")
             message = "INFO Target: " + str(int(target_faces)) + " F. Iter. " + str(c) + "."
-            self.write_to_log(path, separator, message)
+            self.write_to_log(separator, message)
             ms.apply_filter('meshing_decimation_quadric_edge_collapse',
                             targetfacenum=int(target_faces), targetperc=0,
                             qualitythr=0.8,
@@ -989,7 +1090,7 @@ class pc2mesh():
             ratio = (abs(target_faces / f_number) - 1.1) * 10  # Efficiency ratio. resulting amt faces vs target amt of faces
             logging.info("Achieved: "+str(f_number)+" F. Ratio ==> "+"%.2f" % abs(ratio)+":1.00.\r")
             message = 'INFO Achieved: ' + str(f_number) + ' F. Ratio ==> ' + '%.2f' % abs(ratio) + ':1.00.'
-            self.write_to_log(path, separator, message)
+            self.write_to_log(separator, message)
             c += 1
 
         m = ms.current_mesh()
@@ -998,18 +1099,18 @@ class pc2mesh():
 
         logging.info("End VC: "+str(v_number)+". End FC: "+str(f_number)+".\r")
         message = 'INFO End VC: ' + str(v_number) + '. End FC: ' + str(f_number) + "."
-        self.write_to_log(path, separator, message)
+        self.write_to_log(separator, message)
 
         newpath1 = simplified_output_folder + separator + 'decimated_' + designator + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj').replace('.e57', '.obj')
 
         ms.save_current_mesh(newpath1,
-                             save_vertex_color=True,
-                             save_vertex_coord=True,
-                             save_vertex_normal=True,
-                             save_face_color=True,
+                             save_vertex_color=False,
+                             save_vertex_coord=False,
+                             save_vertex_normal=False,
+                             save_face_color=False,
                              save_wedge_texcoord=True,
-                             save_wedge_normal=True,
-                             save_polygonal=True)
+                             save_wedge_normal=False,
+                             save_polygonal=False)
         
         self.add_texture_and_materials(newpath, newpath1, texture_size)
         
@@ -1023,14 +1124,14 @@ class pc2mesh():
 
         message = 'INFO Generating Texture and Materials.'
         logging.info('Generating Texture and Materials.')
-        self.write_to_log(path, separator, message)
+        self.write_to_log(separator, message)
 
         ms.load_new_mesh(newpath)
         ms.load_new_mesh(newpath1)       
         
         try:
             
-            itb = 3 # If itb overrun then texture needs to be bigger
+            itb = 2 # If itb overrun then texture needs to be bigger
                 
             m_method = 'Basic'
         
@@ -1049,7 +1150,7 @@ class pc2mesh():
                 
             logging.error('ITB overrun. Quitting.')
             message = 'ERROR ITB overrun. Quitting.'
-            self.write_to_log(path, separator, message)
+            self.write_to_log(separator, message)
             messagebox.showerror('ARTAK 3D Map Maker', 'Could not compute Mesh from PointCloud. Aborting.')
             current_system_pid = os.getpid()
             ThisSystem = psutil.Process(current_system_pid)
@@ -1078,24 +1179,24 @@ class pc2mesh():
                              save_vertex_color=False,
                              save_vertex_coord=False,
                              save_vertex_normal=False,
-                             save_face_color=True,
+                             save_face_color=False,
                              save_wedge_texcoord=True,
-                             save_wedge_normal=True)
+                             save_wedge_normal=False)
 
         ms.save_current_mesh(model_path,
                              save_vertex_color=False,
                              save_vertex_coord=False,
                              save_vertex_normal=False,
-                             save_face_color=True,
+                             save_face_color=False,
                              save_wedge_texcoord=True,
-                             save_wedge_normal=True)
+                             save_wedge_normal=False)
 
         # We need check if we have to compress the texture file
         
         print("\n")    
         logging.info('Compressing texture.')   
         message = 'INFO Compressing texture.'
-        self.write_to_log(path, separator, message)       
+        self.write_to_log(separator, message)       
 
         img = PIL.Image.open(with_texture_output_folder + separator + designator + 'texture.png')
         img = img.convert("P", palette=PIL.Image.WEB, colors = 256)
@@ -1111,7 +1212,7 @@ class pc2mesh():
             
             logging.info('Compressing to '+with_texture_output_folder + '/'+ str(zip_file_for_compression)) 
             message = 'INFO Compressing to '+with_texture_output_folder +'/'+ str(zip_file_for_compression)
-            self.write_to_log(path, separator, message)
+            self.write_to_log(separator, message)
         
         self.compress_into_zip(with_texture_output_folder, newpath, zip_file)
         
@@ -1141,7 +1242,7 @@ class pc2mesh():
             
         message = 'INFO Reconstruction Complete.\n'
         logging.info('Reconstruction Complete.')
-        self.write_to_log(path, separator, message)
+        self.write_to_log(separator, message)
         messagebox.showinfo('ARTAK 3D Map Maker', 'Reconstruction Complete.')
         
         current_system_pid = os.getpid()
@@ -1155,7 +1256,7 @@ class pc2mesh():
             
             logging.info('Generating Tiles.')   
             message = 'INFO Generating Tiles.'
-            self.write_to_log(path, separator, message)                
+            self.write_to_log(separator, message)                
             
             target_to_tile = with_texture_output_folder + separator + designator + filename.replace('.ply', '.obj').replace('.pts','.obj').replace('.ex','.obj').replace('.e57', '.obj')
             
@@ -1169,11 +1270,11 @@ class pc2mesh():
             
             logging.info('Done Generating Tiles.')   
             message = 'INFO Done Generating Tiles.'
-            self.write_to_log(path, separator, message)   
+            self.write_to_log(separator, message)   
             
             logging.info('Compressing to '+tiles_folder+separator+designator+filename.replace('.ply', '.zip').replace('.pts','.zip').replace('.ex','.zip').replace('.obj','.zip').replace('.e57', '.zip')+".")   
             message = 'INFO Compressing to '+tiles_folder+separator+designator+filename.replace('.ply', '.zip').replace('.pts','.zip').replace('.ex','.zip').replace('.obj','.zip').replace('.e57', '.zip')+"."
-            self.write_to_log(path, separator, message)            
+            self.write_to_log(separator, message)            
             
             shutil.make_archive(tiles_folder.replace('_tiles', ''), 'zip', tiles_folder)
             
@@ -1245,7 +1346,7 @@ class pc2mesh():
             
             return    
 
-    def write_to_log(self, path, separator, message):
+    def write_to_log(self, separator, message):
 
         with open(log_folder + log_name, "a+") as log_file:
             log_file.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+" "+message + "\r")

@@ -2,25 +2,28 @@
 Compile with pyinstaller MM_GUI.py --icon=gui_images/ARTAK_103_drk.ico --collect-all=pymeshlab --onedir --collect-all=open3d
 Make sure to comment the line: subprocess.Popen(["python", "MM_pc2mesh.py"])
 and uncomment: #subprocess.run(["MM_pc2mesh.exe"]) # Change to this when compiling .exe file
-
-
-import win32gui, win32con
-#This snippet hides the console in non compiled scripts. Done for aesthetics
-this_program = win32gui.GetForegroundWindow()
-win32gui.ShowWindow(this_program, win32con.SW_HIDE)
 '''
+import os, platform
 
+if not os.path.exists('debug') and platform.system() == 'Windows':
+
+    import win32gui, win32con
+    #This snippet hides the console in non compiled scripts. Done for aesthetics
+    this_program = win32gui.GetForegroundWindow()
+    win32gui.ShowWindow(this_program, win32con.SW_HIDE)
+     
 import xml.etree.ElementTree as ET
 import random, psutil, glob
 from datetime import datetime
 from PIL import Image
-import os, shutil, webview
+import shutil, webview
 import open3d as o3d
 
 '''
 We will create the work folders on first run. This code serves as a check in case the one of the working folders gets
 accidentaly deleted.
 '''
+
 dirs1 = ['ARTAK_MM/LOGS', 'ARTAK_MM/POST/Lidar', 'ARTAK_MM/DATA/Processing', 'ARTAK_MM/DATA/Generated_Mesh', 'ARTAK_MM/DATA/Generated_PointClouds', 'ARTAK_MM/DATA/Scan_Logs', 'ARTAK_MM/DATA/Imagery']
 
 # cleanup any straggler status file in case of disgraceful exit of either recon script
