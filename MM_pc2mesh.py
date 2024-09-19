@@ -19,7 +19,6 @@ from tkinter import ttk
 from tkinter import filedialog, messagebox
 import numpy as np
 from defisheye import Defisheye
-
 from tqdm import tqdm
 
 sys.setrecursionlimit(1999999999)
@@ -270,15 +269,9 @@ class pc2mesh():
         
         logging.info('Extracting Images.')    
         message = 'INFO Extracting Images.'
-
         self.write_to_log(separator, message)
         
         cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE=/home/exlogs/'+exlog_filename_converted+' && docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-jammy:24.03.0_base excamera -i $LOGFILE --raw -o /home/exlogs"'
-
-        self.write_to_log(path, separator, message)
-        
-        cmd = 'wsl --user mapmaker -e bash -c "export LOGFILE=/home/exlogs/'+exlog_filename_converted+' && /snap/bin/docker run -it --mount type=bind,source=/home/mapmaker/exyn/exlogs,target=/home/exlogs exynai-runtime-bionic:23.10.0_base excamera -i $LOGFILE --cub --compact -o /home/exlogs"'
-
         os.system(cmd)
         
         png_files = [f for f in glob.glob( "\\\wsl.localhost/Ubuntu-22.04\\home\\mapmaker\\exyn\\exlogs\\*.png")]
@@ -293,24 +286,13 @@ class pc2mesh():
         
         image_path = scan_log_image_folder+"/"+exlog_file_name
         
-
         dest = image_path + "/images/"
         
-
-        sources_folder = image_path + "/original/"
-        
-        dest = image_path + "/images/"
-        
-        if not os.path.exists(sources_folder):
-            os.mkdir(sources_folder)        
-        
-
         if not os.path.exists(dest):
             os.mkdir(dest)
         
         filenames = [f for f in glob.glob(image_path + "/*.png")]
         
-
         for file in tqdm((filenames), desc = "Splitting Cameras"):
     
             # Read the image
@@ -375,55 +357,6 @@ class pc2mesh():
                     
                 # To save image locally 
                 obj.convert(outfile = img_out)
-
-
-        for file in filenames:
-            
-            # Read the image
-            img = cv2.imread(file)
-            
-            h, w, channels = img.shape
-            
-            # this is horizontal division
-            half2 = h//2
-        
-            bottom = img[half2:, :]
-            
-            single_image_path, filename = os.path.split(file)
-            
-            file_name, extension = os.path.splitext(filename)
-            
-            result = dest+"/"+filename.replace("_cub.png", "")+extension
-            
-            cv2.imwrite(result, bottom)
-        
-            img = cv2.imread(result) 
-            
-            height, width, _ = img.shape
-            
-            part_width = width//3
-            
-            s1 = img[0:height, 0:part_width]
-            s2 = img[0:height, part_width:2*part_width]
-            s3 = img[0:height, 2*part_width:width]
-            
-            section_1 = dest+"/"+filename.replace("_s1.png", "_s1")+extension
-            cv2.imwrite(section_1, s1)
-            
-            section_2 = dest+"/"+filename.replace("_s2.png", "_s2")+extension
-            cv2.imwrite(section_1, s2)    
-            
-            section_3 = dest+"/"+filename.replace("_s3.png", "_s3")+extension
-            cv2.imwrite(section_3, s3)
-            
-            filenames = [f for f in glob.glob(image_path + "/*.png")]
-            
-            os.unlink(result)
-            
-        for file in filenames:
-            
-            shutil.move(file, sources_folder)
-        
 
         cmd = 'wsl --user mapmaker -e bash -c "sudo rm -rf /home/mapmaker/exyn/exlogs/* && exit; exec bash"'
         os.system(cmd)
@@ -547,19 +480,6 @@ class pc2mesh():
         file_name_1, file_ext_1 = os.path.splitext(filename)
         
         if "." in file_name_1:
-        filename1 = os.path.join(path, filename)
-        
-        exlog_name_for_images = filename
-
-        file_name, extension = os.path.splitext(filename)
-        
-        file_name = file_name.replace(".", '_')
-        
-        filename = file_name+extension        
-
-        fullpath = path + separator + filename
-        
-        if not os.path.exists(filename1):
             
             file_name_1 = file_name_1.replace(".", "_")
             
