@@ -1,0 +1,14 @@
+psutil
+pywebview
+open3d
+pymeshlab
+requests
+customtkinter
+Pillow
+bs4
+beautifulsoup4
+CTkListbox
+tkhtmlview
+py3dtiles
+utm
+pywin32
