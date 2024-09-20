@@ -1258,7 +1258,7 @@ class pc2mesh():
                 
             model = o3d.io.read_triangle_mesh(model_name)
             material = o3d.visualization.rendering.MaterialRecord()
-            material.shader = "defaultLit"        
+            #material.shader = "defaultLit"
             
             material.albedo_img = o3d.io.read_image(albedo_name)
             

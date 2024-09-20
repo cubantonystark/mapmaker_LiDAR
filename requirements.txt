@@ -12,3 +12,7 @@ tkhtmlview
 py3dtiles
 utm
 pywin32
+opencv-python
+numpy
+defisheye
+tqdm
