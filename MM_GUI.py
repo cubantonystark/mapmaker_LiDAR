@@ -108,7 +108,7 @@ class App(customtkinter.CTk):
         super().__init__()
         self.once = once
         self.iconbitmap(default='gui_images/ARTAK_103.ico')
-        self.title("ARTAK 3D Map Maker || LiDAR || v1.0.6rc1")
+        self.title("ARTAK 3D Map Maker || LiDAR || v1.0.8")
         self.geometry("1650x465")
         self.protocol('WM_DELETE_WINDOW', self.terminate_all)
         self.resizable(False, False)
@@ -980,9 +980,10 @@ class App(customtkinter.CTk):
         
         model = o3d.io.read_triangle_mesh(model_name)
         material = o3d.visualization.rendering.MaterialRecord()
-        material.shader = "defaultLit" 
+        #material.shader = "defaultLit"
         
         material.albedo_img = o3d.io.read_image(albedo_name)
+
         o3d.visualization.draw([{"name": "Model", "geometry": model, "material": material}], title = "ARTAK 3D Map Maker || LiDAR Edition", bg_color = [0,0,0,0], show_skybox = False, actions = None, width = 1280, height = 900)
         
         return
