@@ -425,7 +425,7 @@ class pc2mesh():
             designator = 'm_'
             folder_type = 'b1'
             folder_suffix = '_m'
-            texture_size = 4096 
+            texture_size = 8192
             
         elif resulting_mesh_type == "tm":
             
@@ -1051,7 +1051,7 @@ class pc2mesh():
         
         try:
             
-            itb = 2 # If itb overrun then texture needs to be bigger
+            itb = 3 # If itb overrun then texture needs to be bigger
                 
             m_method = 'Basic'
         
